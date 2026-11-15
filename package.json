@@ -1,0 +1,26 @@
+{
+  "name": "api-pro-pivo",
+  "version": "1.0.0",
+  "description": "API avanzada de fútbol en vivo (Cloudflare Workers + Hono) fusionando Promiedos y ESPN Argentina",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test:live": "node tests/verify-live.ts",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "hono": "^4.12.11",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250204.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.109.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

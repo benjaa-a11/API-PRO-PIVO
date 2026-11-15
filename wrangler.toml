@@ -1,0 +1,27 @@
+name = "api-pro-pivo"
+main = "src/index.ts"
+compatibility_date = "2025-02-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+API_VERSION = "1.0.0"
+DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
+CACHE_LIVE_TTL = "25"
+CACHE_DAY_TTL = "180"
+CACHE_DETAIL_LIVE_TTL = "20"
+CACHE_DETAIL_FT_TTL = "3600"
+CACHE_LEAGUE_TTL = "300"
+CACHE_TEAM_TTL = "1800"
+CACHE_CATALOG_TTL = "21600"
+
+# Actualización automática cada 1 minuto en el plan gratuito de Cloudflare Workers
+# Mantiene caliente la caché de partidos en vivo, marcadores del día y ligas destacadas.
+[triggers]
+crons = ["* * * * *"]
+
+# Opcional: Descomenta y reemplaza el ID después de ejecutar `npx wrangler kv namespace create FOOTBALL_KV`
+# El Worker funciona automáticamente incluso sin KV usando memoria + Cloudflare Edge Cache API.
+# [[kv_namespaces]]
+# binding = "FOOTBALL_KV"
+# id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
