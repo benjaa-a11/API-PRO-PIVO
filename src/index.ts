@@ -8,6 +8,13 @@ import {
   ensureChannelOverridesLoaded,
   upsertChannelOverride,
 } from './services/channel-store.ts';
+import {
+  addExcludedLeague,
+  applyLeagueExclusionsToPayload,
+  ensureExcludedLeaguesLoaded,
+  getExcludedLeagues,
+  removeExcludedLeague,
+} from './services/league-filter-store.ts';
 import { footballService, type ServiceResult } from './services/fusion.ts';
 import type { ApiResponse, EnvBindings } from './types/schema.ts';
 import { buildOpenApiSpec, renderDashboardHtml } from './ui/dashboard.ts';
@@ -53,7 +60,10 @@ app.use(
 );
 
 app.use('/api/v1/*', async (c, next) => {
-  await ensureChannelOverridesLoaded(c.env);
+  await Promise.all([
+    ensureChannelOverridesLoaded(c.env),
+    ensureExcludedLeaguesLoaded(c.env),
+  ]);
   await next();
 });
 
@@ -110,7 +120,7 @@ function respondOk<T>(
 
   const body: ApiResponse<T> = {
     ok: true,
-    data: applyChannelOverridesToPayload(result.data),
+    data: applyLeagueExclusionsToPayload(applyChannelOverridesToPayload(result.data)),
     meta: {
       version,
       generatedAt: new Date().toISOString(),
@@ -273,6 +283,49 @@ app.delete('/api/v1/channels/:slug', async (c) => {
   const res = await deleteChannelOverride(slug, c.env);
   if (!res.removed) {
     return c.json({ ok: false, error: `No hay override guardado para '${slug}'` }, 404);
+  }
+  return c.json({ ok: true, ...res });
+});
+
+const excludedLeagueSchema = z.object({
+  slug: z.string().trim().min(1, 'El slug o ID de la liga es requerido').max(120),
+  name: z.string().trim().max(120).optional(),
+  promiedosId: z.string().trim().max(40).optional(),
+  espnSlug: z.string().trim().max(60).optional(),
+});
+
+app.get('/api/v1/excluded-leagues', (c) => {
+  const data = getExcludedLeagues();
+  return c.json({
+    ok: true,
+    count: data.length,
+    persistence: c.env?.FOOTBALL_KV ? 'kv' : 'memory',
+    authMode: c.env?.ADMIN_TOKEN ? 'token-protected' : 'open-dev',
+    data,
+  });
+});
+
+app.post('/api/v1/excluded-leagues', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const rawBody = await c.req.json().catch(() => null);
+  const parsed = excludedLeagueSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.json({ ok: false, error: 'Payload inválido', issues: parsed.error.issues }, 400);
+  }
+  const res = await addExcludedLeague(parsed.data, c.env);
+  return c.json({ ok: true, persistedIn: res.persistedIn, data: res.entry }, 201);
+});
+
+app.delete('/api/v1/excluded-leagues/:slug', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const slug = c.req.param('slug');
+  const res = await removeExcludedLeague(slug, c.env);
+  if (!res.removed) {
+    return c.json({ ok: false, error: `La liga '${slug}' no está en la lista de exclusión` }, 404);
   }
   return c.json({ ok: true, ...res });
 });

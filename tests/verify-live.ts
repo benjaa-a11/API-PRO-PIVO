@@ -393,6 +393,33 @@ async function runLiveE2E(): Promise<void> {
   await callApi('/api/v1/channels/canal-deportivo-test', { method: 'DELETE' });
   console.log('PUT/POST/DELETE /api/v1/channels + ADMIN_TOKEN -> OK');
 
+  // Exclusión de ligas + protección ADMIN_TOKEN + bloqueo de extracción
+  const unauthExcl = await callApi(
+    '/api/v1/excluded-leagues',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'premier-league' }),
+    },
+    { ADMIN_TOKEN: 'secreto-test-123' },
+  );
+  assert.equal(unauthExcl.status, 401);
+
+  const exclPost = await callApi('/api/v1/excluded-leagues', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug: 'premier-league' }),
+  });
+  assert.equal(exclPost.status, 201);
+
+  const exclDetail = await callApi('/api/v1/leagues/premier-league');
+  assert.equal(exclDetail.status, 404);
+
+  const exclDel = await callApi('/api/v1/excluded-leagues/premier-league', { method: 'DELETE' });
+  assert.equal(exclDel.status, 200);
+  assert.equal(exclDel.body.removed, true);
+  console.log('GET/POST/DELETE /api/v1/excluded-leagues -> OK');
+
   const todayRes = await callApi('/api/v1/matches?date=today');
   assert.equal(todayRes.status, 200);
   assert.equal(todayRes.body.ok, true);

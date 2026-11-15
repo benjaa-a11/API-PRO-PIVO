@@ -157,6 +157,23 @@ export function buildOpenApiSpec(baseUrl: string) {
           responses: { '200': { description: 'Override eliminado' } },
         },
       },
+      '/api/v1/excluded-leagues': {
+        get: {
+          summary: 'Lista de ligas excluidas de la extracción en tu API',
+          responses: { '200': { description: 'Ligas actualmente excluidas' } },
+        },
+        post: {
+          summary: 'Excluir una liga para que no se extraiga ni aparezca en tu API',
+          responses: { '201': { description: 'Liga excluida' }, '401': { description: 'ADMIN_TOKEN requerido' } },
+        },
+      },
+      '/api/v1/excluded-leagues/{slug}': {
+        delete: {
+          summary: 'Volver a habilitar una liga previamente excluida',
+          parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'Liga restaurada' } },
+        },
+      },
     },
   };
 }
@@ -181,25 +198,33 @@ export function renderDashboardHtml(baseUrl: string): string {
   --side-w:276px;
 }
 *{box-sizing:border-box;margin:0}
-html{background:var(--bg);color:var(--tx);font-family:var(--sans);-webkit-text-size-adjust:100%}
+html{background:var(--bg);color:var(--tx);font-family:var(--sans);-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:138px;overscroll-behavior-y:none}
 body{min-height:100dvh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
-  background:radial-gradient(900px 420px at 85% -10%,rgba(200,255,71,.09),transparent 60%),var(--bg)}
+  background:radial-gradient(900px 420px at 85% -10%,rgba(200,255,71,.09),transparent 60%),var(--bg);-webkit-font-smoothing:antialiased}
 button,input,select{font:inherit;color:inherit}
+button,a,.card,.mini-card,.chip,.tab,.nav-item{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 button{cursor:pointer;background:none;border:0}
+button:active,.card:active,.mini-card:active,.chip:active,.tab:active,.nav-item:active{transform:scale(0.975);transition:transform 100ms cubic-bezier(.2,0,0,1)}
 a{color:inherit;text-decoration:none}
 :focus-visible{outline:2px solid var(--lime);outline-offset:2px}
 img{display:block}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28)}
 
-/* Layout con Sidebar lateral */
+/* Layout con Sidebar lateral (material translúcido) */
 .layout{display:flex;min-height:100dvh}
-.sidebar{position:fixed;inset:0 auto 0 0;width:var(--side-w);background:rgba(14,17,24,.94);backdrop-filter:blur(16px);
-  border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:30;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.sidebar{position:fixed;inset:0 auto 0 0;width:var(--side-w);background:rgba(14,17,24,.82);
+  backdrop-filter:saturate(180%) blur(22px);-webkit-backdrop-filter:saturate(180%) blur(22px);
+  border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:30;
+  will-change:transform;transition:transform .34s cubic-bezier(.22,1,.36,1)}
 .side-head{display:flex;align-items:center;justify-content:space-between;padding:20px 18px 14px;border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:12px}
 .logo{width:38px;height:38px;border-radius:12px;background:var(--lime);color:#0B0D12;display:grid;place-items:center;font-weight:700;font-size:19px;flex:none}
-.brand h1{font-size:17px;font-weight:700;letter-spacing:-.02em}
+.brand h1{font-size:17px;font-weight:700;letter-spacing:-.025em}
 .brand small{display:block;color:var(--mut);font-size:12px;margin-top:1px}
-.side-scroll{flex:1;overflow-y:auto;padding:14px 12px 24px;display:flex;flex-direction:column;gap:18px;scrollbar-width:thin}
+.side-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:14px 12px 28px;display:flex;flex-direction:column;gap:18px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.16) transparent}
 .nav-sec-title{display:flex;align-items:center;justify-content:space-between;width:100%;padding:4px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mut)}
 .nav-sec-title svg{transition:rotate .2s;opacity:.7}
 .nav-sec.shut .nav-sec-title svg{rotate:-90deg}
@@ -252,18 +277,20 @@ header{display:flex;align-items:center;justify-content:space-between;gap:14px;pa
 .hero p{color:var(--mut);margin-top:9px;font-size:15px}
 .stats{display:flex;gap:10px;flex-wrap:wrap}
 .stat{padding:11px 16px;border-radius:16px;border:1px solid var(--line);background:var(--glass);min-width:92px}
-.stat b{display:block;font-family:var(--mono);font-size:21px}
+.stat b{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:21px}
 .stat span{font-size:12.5px;color:var(--mut)}
 
-/* Barra sticky de filtros */
-.bar{position:sticky;top:0;z-index:5;margin:0 -22px;padding:12px 22px;background:linear-gradient(var(--bg) 72%,transparent);display:grid;gap:10px}
+/* Barra sticky de filtros con material translúcido */
+.bar{position:sticky;top:0;z-index:5;margin:0 -22px;padding:12px 22px;
+  background:rgba(11,13,18,.76);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.05);display:grid;gap:10px}
 .search{position:relative}
-.search input{width:100%;padding:13px 16px 13px 44px;border-radius:16px;border:1px solid var(--line);background:var(--bg2);outline:none}
+.search input{width:100%;padding:12px 16px 12px 44px;border-radius:16px;border:1px solid var(--line);background:rgba(18,21,29,.88);outline:none;transition:border-color .16s}
 .search input:focus{border-color:var(--lime)}
 .search svg{position:absolute;left:15px;top:50%;translate:0 -50%;color:var(--mut)}
-.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:none;display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--glass);font-size:13.5px;color:var(--mut);transition:.2s}
+.chip{flex:none;scroll-snap-align:start;display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--glass);font-size:13.5px;color:var(--mut);transition:background .16s,color .16s,border-color .16s,transform 100ms ease-out}
 .chip img{width:18px;height:18px;object-fit:contain}
 .chip.on{background:var(--lime);border-color:var(--lime);color:#0B0D12;font-weight:600}
 .chip i{font-style:normal;font-family:var(--mono);font-size:12px;opacity:.75}
@@ -301,7 +328,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:14px;pa
 .team .nm{font-size:14.5px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
 .tl,.ph{width:50px;height:50px;object-fit:contain}
 .ph{display:grid;place-items:center;border-radius:15px;background:var(--bg2);border:1px solid var(--line);font-family:var(--mono);font-size:13px;font-weight:700}
-.score{font-family:var(--mono);font-weight:700;font-size:clamp(28px,7vw,36px);letter-spacing:-.04em;white-space:nowrap;text-align:center}
+.score{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;font-size:clamp(26px,6.5vw,36px);letter-spacing:-.04em;white-space:nowrap;text-align:center}
 .score em{font-style:normal;color:var(--mut);margin:0 4px}
 .score.t{font-size:24px;color:var(--lime)}
 .pen-sc{display:block;font-size:12px;color:var(--amber);margin-top:2px}
@@ -319,13 +346,13 @@ header{display:flex;align-items:center;justify-content:space-between;gap:14px;pa
 .panel-head{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .panel-head h3{font-size:17px;font-weight:700}
 .panel-body{padding:16px 20px}
-.table-wrap{overflow-x:auto}
+.table-wrap{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
-.tbl th{text-align:left;padding:10px 10px;color:var(--mut);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
+.tbl th{text-align:left;padding:10px 10px;color:var(--mut);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);white-space:nowrap}
 .tbl td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle}
 .tbl tr:hover td{background:rgba(255,255,255,.03)}
-.tbl .num{font-family:var(--mono);text-align:center}
-.tbl .pts{font-family:var(--mono);font-weight:700;color:var(--lime);text-align:center}
+.tbl .num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:center}
+.tbl .pts{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;color:var(--lime);text-align:center}
 .team-link{display:inline-flex;align-items:center;gap:10px;font-weight:600;text-align:left}
 .team-link:hover{color:var(--lime)}
 .team-link img{width:24px;height:24px;object-fit:contain}
@@ -334,24 +361,29 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 
-.tabs{display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding-bottom:4px}
-.tab{padding:9px 15px;border-radius:99px;border:1px solid var(--line);background:var(--glass);font-size:13.5px;color:var(--mut);white-space:nowrap}
+.tabs{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:none;margin-top:12px;padding-bottom:4px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;scroll-snap-align:start;padding:9px 15px;border-radius:99px;border:1px solid var(--line);background:var(--glass);font-size:13.5px;color:var(--mut);white-space:nowrap}
 .tab.on{background:var(--lime);border-color:var(--lime);color:#0B0D12;font-weight:700}
 
 /* Cards de catálogo / clubes / brackets */
 .cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:12px}
-.mini-card{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:16px;border:1px solid var(--line);background:var(--glass);text-align:left;transition:.16s}
+.mini-card{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:16px;border:1px solid var(--line);background:var(--glass);text-align:left;transition:border-color .16s,transform 100ms ease-out}
 .mini-card:hover{border-color:var(--lime);transform:translateY(-1px)}
 .mini-card img{width:32px;height:32px;object-fit:contain;flex:none}
 .mini-card strong{display:block;font-size:14px}
 .mini-card small{color:var(--mut);font-size:12px}
 
-/* Modal / Sheet de detalle */
-.ov{position:fixed;inset:0;z-index:40;background:rgba(5,6,9,.78);backdrop-filter:blur(7px);display:none;align-items:flex-end;justify-content:center}
+/* Modal / Sheet de detalle con arrastre 1:1 y spring */
+.ov{position:fixed;inset:0;z-index:40;background:rgba(5,6,9,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none;align-items:flex-end;justify-content:center}
 .ov.open{display:flex}
-.sheet{width:min(720px,100%);max-height:92dvh;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:28px 28px 0 0;padding:22px 22px calc(28px + env(safe-area-inset-bottom));animation:up .26s cubic-bezier(.2,.8,.2,1)}
-@keyframes up{from{translate:0 40px;opacity:0}}
-@media(min-width:680px){.ov{align-items:center}.sheet{border-radius:28px}}
+.sheet{width:min(720px,100%);max-height:92dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  background:rgba(18,21,29,.94);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);
+  border:1px solid var(--line);border-radius:28px 28px 0 0;padding:10px 22px calc(28px + env(safe-area-inset-bottom));
+  will-change:transform;animation:up .34s cubic-bezier(.22,1,.36,1)}
+.sheet-handle{width:40px;height:4.5px;border-radius:99px;background:rgba(255,255,255,.24);margin:2px auto 12px;touch-action:none;cursor:grab}
+@keyframes up{from{transform:translateY(48px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(min-width:680px){.ov{align-items:center;padding:16px}.sheet{border-radius:28px;padding-top:18px}.sheet-handle{display:none}}
 .sheet h4{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:20px 0 10px}
 .x{float:right;width:36px;height:36px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center}
 .x:hover{border-color:var(--lime);color:var(--lime)}
@@ -406,16 +438,36 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
 .in .card{animation:in .45s both;animation-delay:calc(var(--i)*35ms)}
 @keyframes in{from{opacity:0;translate:0 12px}}
 
-/* Responsive Sidebar */
+/* Responsive Sidebar & Mobile Polish */
 @media(max-width:960px){
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:translateX(0)}
   .side-backdrop.open{display:block}
+  #sideClose{display:grid!important}
   .main-area{margin-left:0}
   .menu-btn{display:grid}
 }
-@media(max-width:520px){.grid{grid-template-columns:1fr}.wrap{padding:0 14px 80px}.bar{margin:0 -14px;padding:10px 14px}}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:520px){
+  .grid{grid-template-columns:1fr}
+  .wrap{padding:0 14px 84px}
+  .bar{margin:0 -14px;padding:10px 14px}
+  .hero{padding:16px 0 14px;gap:14px}
+  .stat{flex:1;min-width:74px;padding:10px 12px}
+  .panel-head,.panel-body{padding:14px}
+  .ep-row>*{min-width:0}
+  .ep-row .btn-lime,.ep-row .btn-ghost{width:100%}
+  .sheet{padding:10px 16px calc(24px + env(safe-area-inset-bottom))}
+  .crumb{max-width:58vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media(max-width:380px){
+  .tl,.ph{width:42px;height:42px}
+  .score{font-size:clamp(22px,6.5vw,30px)}
+  .team .nm{font-size:13.5px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}
+}
 </style>
 </head>
 <body>
@@ -479,6 +531,7 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
         <div class="nav-items">
           <button class="nav-item" data-nav="explorer"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg><span>Explorador JSON</span></span></button>
           <button class="nav-item" data-nav="channels"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/></svg><span>Canales TV (Mapeo)</span></span></button>
+          <button class="nav-item" data-nav="excluded-leagues"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m4.93 4.93 14.14 14.14"/></svg><span>Ligas Excluidas</span></span><span class="nav-badge" id="sideExclBadge" style="display:none">0</span></button>
           <button class="nav-item" data-nav="mappings"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Mapeos de Ligas</span></span></button>
           <button class="nav-item" data-nav="health"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Salud &amp; Caché</span></span></button>
           <a class="nav-item" href="${cleanBase}/openapi.json" target="_blank"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>OpenAPI 3.1 JSON ↗</span></span></a>
@@ -602,6 +655,7 @@ function toggleDrawer(forceOpen) {
   const open = typeof forceOpen === 'boolean' ? forceOpen : !sb.classList.contains('open');
   sb.classList.toggle('open', open);
   bg.classList.toggle('open', open);
+  document.body.style.overflow = open && window.innerWidth <= 960 ? 'hidden' : '';
 }
 
 /* ===== Navegación central ===== */
@@ -646,6 +700,9 @@ async function navigate(target, manual = false) {
   } else if (section === 'channels') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Canales TV</strong>';
     await loadChannels(param || '');
+  } else if (section === 'excluded-leagues') {
+    $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Ligas Excluidas</strong>';
+    await loadExcludedLeagues();
   } else if (section === 'health') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Salud &amp; Caché</strong>';
     await loadHealth();
@@ -797,6 +854,7 @@ function renderSheet() {
   const loadingBadge = !det ? '<span class="pill stale" style="font-size:11px;padding:3px 9px">Cargando Gamecenter completo…</span>' : '<span class="pill fresh" style="font-size:11px;padding:3px 9px">' + esc((m.sources || []).join(' + ').toUpperCase()) + '</span>';
 
   const headerHtml =
+    '<div class="sheet-handle" id="sheetHandle" aria-hidden="true"></div>' +
     '<button class="x" data-close aria-label="Cerrar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>' +
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + loadingBadge + '<span class="muted">' + esc(leagueName(m.league || {})) + (m.stageRound ? ' · ' + esc(m.stageRound) : '') + '</span></div>' +
     '<div class="match" style="margin-top:18px">' +
@@ -1242,6 +1300,132 @@ function renderChannelsView(toastMsg = '', isErr = false) {
   });
 }
 
+async function loadExcludedLeagues() {
+  const [excl, maps] = await Promise.all([
+    apiGet('/api/v1/excluded-leagues'),
+    S.mappingsData ? Promise.resolve({ data: S.mappingsData }) : apiGet('/api/v1/mappings'),
+  ]);
+  S.excludedData = excl;
+  S.mappingsData = maps.data;
+  updateExclBadge(excl.count || 0);
+  renderExcludedLeaguesView();
+}
+
+function updateExclBadge(n) {
+  const b = $('#sideExclBadge');
+  if (!b) return;
+  b.textContent = n;
+  b.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+function renderExcludedLeaguesView(toastMsg = '', isErr = false) {
+  const excl = S.excludedData || { count: 0, persistence: 'memory', authMode: 'open-dev', data: [] };
+  const exclSet = new Set((excl.data || []).map((e) => e.slug));
+  const q = (S.exclQuery || '').trim().toLowerCase();
+  const savedTok = sessionStorage.getItem('pivo_admin_token') || '';
+
+  const pool = new Map();
+  for (const m of (S.mappingsData || [])) {
+    pool.set(m.canonicalSlug, { slug: m.canonicalSlug, name: m.name, promiedosId: m.promiedosId, espnSlug: m.espnSlug, country: m.countryName });
+  }
+  for (const g of (S.leagues || [])) {
+    const slug = g.league.canonicalSlug || g.league.id;
+    if (!pool.has(slug)) {
+      pool.set(slug, { slug, name: leagueName(g.league, g.matches), promiedosId: g.league.externalIds?.promiedos, espnSlug: g.league.externalIds?.espn, country: g.league.countryName || '' });
+    }
+  }
+  const available = Array.from(pool.values()).filter((l) =>
+    !exclSet.has(l.slug) &&
+    (!q || l.name.toLowerCase().includes(q) || l.slug.toLowerCase().includes(q) || (l.espnSlug || '').toLowerCase().includes(q))
+  );
+
+  $('#viewRoot').innerHTML =
+    '<section class="hero"><div><h2><b>' + excl.count + '</b> Ligas Excluidas</h2><p>Las ligas excluidas no se extraen ni aparecen en tu API · Persistencia: <strong>' + (excl.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong></p></div></section>' +
+    (toastMsg ? '<div class="ch-toast ' + (isErr ? 'err' : '') + '">' + esc(toastMsg) + '</div>' : '') +
+    '<div class="panel"><div class="panel-head"><h3>Excluir liga manualmente (slug, ID o nombre)</h3>' +
+      (excl.authMode === 'token-protected' ? '<input class="ch-in mono" id="exAdminTok" type="password" placeholder="ADMIN_TOKEN" value="' + esc(savedTok) + '" style="min-width:200px">' : '') +
+    '</div><div class="panel-body"><form id="exAddForm" class="ep-row" style="margin-bottom:0">' +
+      '<input class="ch-in mono" id="exSlug" placeholder="Slug o ID (ej: championship, eng.2, ihh)" style="flex:1;min-width:190px" required>' +
+      '<input class="ch-in" id="exName" placeholder="Nombre visible (opcional)" style="flex:1;min-width:180px">' +
+      '<button class="btn-lime" type="submit">Excluir de la API</button>' +
+    '</form></div></div>' +
+    ((excl.data || []).length
+      ? '<div class="panel"><div class="panel-head"><h3>Actualmente excluidas</h3></div><div class="table-wrap"><table class="tbl"><thead><tr><th>Liga</th><th>Slug</th><th>IDs</th><th>Acción</th></tr></thead><tbody>' +
+        excl.data.map((e) =>
+          '<tr><td><strong>' + esc(e.name) + '</strong></td><td style="font-family:var(--mono);color:var(--red)">' + esc(e.slug) + '</td><td class="muted" style="font-family:var(--mono);font-size:12px">' + esc([e.promiedosId, e.espnSlug].filter(Boolean).join(' · ') || '-') + '</td><td><button class="btn-ghost ex-restore" data-slug="' + esc(e.slug) + '" type="button" style="padding:6px 11px;font-size:12px">Volver a activar</button></td></tr>'
+        ).join('') +
+        '</tbody></table></div></div>'
+      : '') +
+    '<div class="panel"><div class="panel-head"><h3>Quitar ligas conocidas</h3><input class="ch-in" id="exSearch" type="search" value="' + esc(S.exclQuery || '') + '" placeholder="Buscar liga para quitar..." style="flex:1;min-width:220px"></div>' +
+    '<div class="table-wrap"><table class="tbl"><thead><tr><th>Liga</th><th>País</th><th>Slug</th><th>Acción</th></tr></thead><tbody>' +
+    available.map((l) =>
+      '<tr><td><strong>' + esc(l.name) + '</strong></td><td class="muted">' + esc(l.country || '-') + '</td><td style="font-family:var(--mono);font-size:12px">' + esc(l.slug) + '</td><td><button class="btn-ghost ex-ban" data-slug="' + esc(l.slug) + '" data-name="' + esc(l.name) + '" data-pm="' + esc(l.promiedosId || '') + '" data-espn="' + esc(l.espnSlug || '') + '" type="button" style="padding:6px 11px;font-size:12px;color:var(--red);border-color:rgba(255,77,94,.35)">Quitar de API</button></td></tr>'
+    ).join('') +
+    '</tbody></table></div></div>';
+
+  const tokEl = $('#exAdminTok');
+  if (tokEl) tokEl.addEventListener('input', (e) => sessionStorage.setItem('pivo_admin_token', e.target.value));
+
+  $('#exSearch').addEventListener('input', (e) => {
+    S.exclQuery = e.target.value;
+    renderExcludedLeaguesView();
+    const el = $('#exSearch');
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  });
+
+  $('#exAddForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const slug = $('#exSlug').value.trim();
+    const name = $('#exName').value.trim();
+    const r = await fetch('/api/v1/excluded-leagues', {
+      method: 'POST',
+      headers: channelHeaders(),
+      body: JSON.stringify({ slug, ...(name ? { name } : {}) }),
+    });
+    const res = await r.json();
+    if (!r.ok || !res.ok) return renderExcludedLeaguesView(res.error || 'Error excluyendo liga', true);
+    S.excludedData = await apiGet('/api/v1/excluded-leagues');
+    updateExclBadge(S.excludedData.count || 0);
+    renderExcludedLeaguesView('Liga "' + res.data.name + '" excluida de tu API.');
+  });
+
+  document.querySelectorAll('.ex-ban').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const r = await fetch('/api/v1/excluded-leagues', {
+        method: 'POST',
+        headers: channelHeaders(),
+        body: JSON.stringify({
+          slug: btn.dataset.slug,
+          name: btn.dataset.name,
+          ...(btn.dataset.pm ? { promiedosId: btn.dataset.pm } : {}),
+          ...(btn.dataset.espn ? { espnSlug: btn.dataset.espn } : {}),
+        }),
+      });
+      const res = await r.json();
+      if (!r.ok || !res.ok) return renderExcludedLeaguesView(res.error || 'Error excluyendo liga', true);
+      S.excludedData = await apiGet('/api/v1/excluded-leagues');
+      updateExclBadge(S.excludedData.count || 0);
+      renderExcludedLeaguesView('Liga "' + res.data.name + '" quitada de la API.');
+    });
+  });
+
+  document.querySelectorAll('.ex-restore').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const slug = btn.dataset.slug;
+      const r = await fetch('/api/v1/excluded-leagues/' + encodeURIComponent(slug), {
+        method: 'DELETE',
+        headers: channelHeaders(),
+      });
+      const res = await r.json();
+      if (!r.ok || !res.ok) return renderExcludedLeaguesView(res.error || 'Error restaurando liga', true);
+      S.excludedData = await apiGet('/api/v1/excluded-leagues');
+      updateExclBadge(S.excludedData.count || 0);
+      renderExcludedLeaguesView('Liga "' + slug + '" reactivada en tu API.');
+    });
+  });
+}
+
 async function loadHealth() {
   const r = await fetch('/api/v1/health');
   const h = await r.json();
@@ -1292,6 +1476,63 @@ $('#menuBtn').addEventListener('click', () => toggleDrawer());
 $('#rf').addEventListener('click', () => navigate(S.view === 'matches' ? 'matches:' + S.dateMode : S.view === 'league' ? 'league:' + S.leagueId : S.view === 'team' ? 'team:' + S.teamId : S.view, true));
 $('#sideDatePick').addEventListener('change', (e) => { if (e.target.value) navigate('matches:' + e.target.value); });
 
+/* ===== Gesto de arrastre 1:1 con momentum para el Sheet (Apple-style) ===== */
+(() => {
+  const sheet = $('#sheet');
+  let drag = null;
+  let curY = 0;
+
+  sheet.addEventListener('pointerdown', (e) => {
+    const onHandle = e.target.closest('.sheet-handle');
+    if (!onHandle && sheet.scrollTop > 0) return;
+    if (e.target.closest('button,input,select,a')) return;
+    drag = { id: e.pointerId, startY: e.clientY, baseY: curY, pts: [{ y: e.clientY, t: performance.now() }] };
+    sheet.style.transition = 'none';
+  });
+
+  sheet.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const rawDy = e.clientY - drag.startY + drag.baseY;
+    if (rawDy < 0 && sheet.scrollTop > 0) return;
+    if (rawDy > 4 && sheet.scrollTop <= 0) {
+      if (!sheet.hasPointerCapture(e.pointerId)) {
+        try { sheet.setPointerCapture(e.pointerId); } catch {}
+      }
+    }
+    // Resistencia rubber-band hacia arriba, 1:1 hacia abajo
+    curY = rawDy >= 0 ? rawDy : rawDy * 0.22;
+    sheet.style.transform = 'translate3d(0,' + curY.toFixed(1) + 'px,0)';
+    drag.pts.push({ y: e.clientY, t: performance.now() });
+    if (drag.pts.length > 5) drag.pts.shift();
+  });
+
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const pts = drag.pts;
+    drag = null;
+    let vy = 0;
+    if (pts.length >= 2) {
+      const a = pts[0], b = pts[pts.length - 1];
+      const dt = Math.max(1, b.t - a.t);
+      vy = (b.y - a.y) / dt; // px/ms
+    }
+    const projected = curY + vy * 150;
+    sheet.style.transition = 'transform .32s cubic-bezier(.22,1,.36,1)';
+    if (projected > 115 || vy > 0.65) {
+      curY = window.innerHeight;
+      sheet.style.transform = 'translate3d(0,100%,0)';
+      setTimeout(() => { curY = 0; sheet.style.transform = ''; sheet.style.transition = ''; closeM(); }, 220);
+    } else {
+      curY = 0;
+      sheet.style.transform = 'translate3d(0,0,0)';
+      setTimeout(() => { sheet.style.transition = ''; }, 330);
+    }
+  };
+  sheet.addEventListener('pointerup', endDrag);
+  sheet.addEventListener('pointercancel', endDrag);
+})();
+
+apiGet('/api/v1/excluded-leagues').then((r) => updateExclBadge(r.count || 0)).catch(() => {});
 navigate('matches:today');
 setInterval(() => {
   if (!document.hidden && S.view === 'matches' && (S.dateMode === 'today' || S.dateMode === 'live')) {

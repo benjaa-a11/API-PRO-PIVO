@@ -1,4 +1,6 @@
 import { LEAGUE_MAPPINGS, findLeagueMapping } from '../config/mappings.ts';
+import { HttpError } from '../utils/http.ts';
+import { isLeagueRefExcluded } from './league-filter-store.ts';
 import {
   fetchEspnLeaguesCatalog,
   fetchEspnMatchSummary,
@@ -960,6 +962,16 @@ export class FootballService {
   ): Promise<ServiceResult<UnifiedLeagueDetail>> {
     const start = Date.now();
     const mapping = findLeagueMapping(identifier);
+    if (
+      isLeagueRefExcluded({
+        id: identifier,
+        canonicalSlug: mapping?.canonicalSlug ?? identifier,
+        name: mapping?.name,
+        externalIds: { promiedos: mapping?.promiedosId, espn: mapping?.espnSlug },
+      })
+    ) {
+      throw new HttpError(404, `Liga '${identifier}' excluida de la extracción en tu API.`);
+    }
     const pmId =
       mapping?.promiedosId ??
       (identifier.startsWith('pm:') ? identifier.slice(3) : undefined) ??
