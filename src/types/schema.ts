@@ -18,6 +18,8 @@ export interface EnvBindings {
   CACHE_TEAM_TTL?: string;
   CACHE_CATALOG_TTL?: string;
   ADMIN_TOKEN?: string;
+  FIREBASE_PROJECT_ID?: string;
+  FIREBASE_API_KEY?: string;
   FOOTBALL_KV?: KVNamespace;
 }
 

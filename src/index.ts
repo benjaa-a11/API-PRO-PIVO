@@ -15,6 +15,7 @@ import {
   getExcludedLeagues,
   removeExcludedLeague,
 } from './services/league-filter-store.ts';
+import { getFirebaseProjectInfo } from './services/firebase-config.ts';
 import { footballService, type ServiceResult } from './services/fusion.ts';
 import type { ApiResponse, EnvBindings } from './types/schema.ts';
 import { buildOpenApiSpec, renderDashboardHtml } from './ui/dashboard.ts';
@@ -160,6 +161,8 @@ app.get('/api/v1/health', (c) => {
     sources: ['promiedos', 'espn'],
     mappedLeaguesCount: LEAGUE_MAPPINGS.length,
     kvConfigured: Boolean(c.env?.FOOTBALL_KV),
+    firebaseConfigured: true,
+    firebaseProjectId: getFirebaseProjectInfo(c.env).projectId,
     cacheStats: sharedCache.getStats(),
     timestamp: new Date().toISOString(),
   });
@@ -192,7 +195,8 @@ app.get('/api/v1/channels', (c) => {
     count: data.length,
     mappedIdsCount,
     overriddenCount,
-    persistence: c.env?.FOOTBALL_KV ? 'kv' : 'memory',
+    persistence: 'firestore',
+    firebaseProjectId: getFirebaseProjectInfo(c.env).projectId,
     authMode: c.env?.ADMIN_TOKEN ? 'token-protected' : 'open-dev',
     data: data.map((ch) => ({
       id: ch.id,
@@ -299,7 +303,8 @@ app.get('/api/v1/excluded-leagues', (c) => {
   return c.json({
     ok: true,
     count: data.length,
-    persistence: c.env?.FOOTBALL_KV ? 'kv' : 'memory',
+    persistence: 'firestore',
+    firebaseProjectId: getFirebaseProjectInfo(c.env).projectId,
     authMode: c.env?.ADMIN_TOKEN ? 'token-protected' : 'open-dev',
     data,
   });

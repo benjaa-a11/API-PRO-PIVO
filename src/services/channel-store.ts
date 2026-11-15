@@ -9,11 +9,14 @@ import {
   slugifyTvName,
 } from '../config/mappings.ts';
 import type { EnvBindings, TvBroadcast, UnifiedMatch } from '../types/schema.ts';
+import { firestoreReadConfigMap, firestoreWriteConfigMap } from './firebase-config.ts';
 
 const KV_OVERRIDES_KEY = 'config:tv-channel-overrides:v1';
 
+export type PersistenceBackend = 'firestore' | 'kv' | 'memory';
+
 let overridesMem: Record<string, TvChannelMapping> = {};
-let kvLoaded = false;
+let configLoaded = false;
 
 export interface UpsertChannelInput {
   slug?: string;
@@ -25,39 +28,49 @@ export interface UpsertChannelInput {
 }
 
 export async function ensureChannelOverridesLoaded(env?: EnvBindings): Promise<void> {
-  if (kvLoaded || !env?.FOOTBALL_KV) {
-    kvLoaded = true;
-    return;
-  }
+  if (configLoaded) return;
   try {
-    const raw = await env.FOOTBALL_KV.get(KV_OVERRIDES_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Record<string, TvChannelMapping>;
-      if (parsed && typeof parsed === 'object') {
-        overridesMem = parsed;
-        setRuntimeTvOverrides(overridesMem);
+    const fromFs = await firestoreReadConfigMap<TvChannelMapping>('tv_channels', env);
+    if (fromFs) {
+      overridesMem = fromFs;
+      setRuntimeTvOverrides(overridesMem);
+      if (env?.FOOTBALL_KV) {
+        await env.FOOTBALL_KV.put(KV_OVERRIDES_KEY, JSON.stringify(overridesMem));
+      }
+      configLoaded = true;
+      return;
+    }
+    if (env?.FOOTBALL_KV) {
+      const raw = await env.FOOTBALL_KV.get(KV_OVERRIDES_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, TvChannelMapping>;
+        if (parsed && typeof parsed === 'object') {
+          overridesMem = parsed;
+          setRuntimeTvOverrides(overridesMem);
+        }
       }
     }
   } catch (err) {
-    console.warn('Failed to load TV channel overrides from KV:', err);
+    console.warn('Failed to load TV channel overrides:', err);
   } finally {
-    kvLoaded = true;
+    configLoaded = true;
   }
 }
 
-async function persistOverrides(env?: EnvBindings): Promise<'kv' | 'memory'> {
+async function persistOverrides(env?: EnvBindings): Promise<PersistenceBackend> {
   setRuntimeTvOverrides(overridesMem);
+  const fsOk = await firestoreWriteConfigMap('tv_channels', overridesMem, env);
   if (env?.FOOTBALL_KV) {
     await env.FOOTBALL_KV.put(KV_OVERRIDES_KEY, JSON.stringify(overridesMem));
-    return 'kv';
   }
-  return 'memory';
+  if (fsOk) return 'firestore';
+  return env?.FOOTBALL_KV ? 'kv' : 'memory';
 }
 
 export async function upsertChannelOverride(
   input: UpsertChannelInput,
   env?: EnvBindings,
-): Promise<{ channel: EffectiveTvChannel; persistedIn: 'kv' | 'memory' }> {
+): Promise<{ channel: EffectiveTvChannel; persistedIn: PersistenceBackend }> {
   await ensureChannelOverridesLoaded(env);
 
   const cleanName = input.name.replace(/\s+/g, ' ').trim();
@@ -95,7 +108,7 @@ export async function upsertChannelOverride(
 export async function deleteChannelOverride(
   rawSlug: string,
   env?: EnvBindings,
-): Promise<{ removed: boolean; restoredToDefault: boolean; persistedIn: 'kv' | 'memory' }> {
+): Promise<{ removed: boolean; restoredToDefault: boolean; persistedIn: PersistenceBackend }> {
   await ensureChannelOverridesLoaded(env);
   const slug = slugifyTvName(rawSlug);
   const existed = Boolean(overridesMem[slug]);
@@ -103,7 +116,7 @@ export async function deleteChannelOverride(
     return {
       removed: false,
       restoredToDefault: false,
-      persistedIn: env?.FOOTBALL_KV ? 'kv' : 'memory',
+      persistedIn: 'firestore',
     };
   }
   delete overridesMem[slug];
@@ -117,7 +130,7 @@ export async function deleteChannelOverride(
 
 export function resetInMemoryChannelOverridesForTests(): void {
   overridesMem = {};
-  kvLoaded = false;
+  configLoaded = false;
   setRuntimeTvOverrides({});
 }
 

@@ -6,6 +6,8 @@ import type {
   UnifiedLeagueRef,
   UnifiedMatch,
 } from '../types/schema.ts';
+import type { PersistenceBackend } from './channel-store.ts';
+import { firestoreReadConfigMap, firestoreWriteConfigMap } from './firebase-config.ts';
 
 const KV_EXCLUDED_KEY = 'config:excluded-leagues:v1';
 
@@ -18,34 +20,43 @@ export interface ExcludedLeagueEntry {
 }
 
 let excludedMem: Record<string, ExcludedLeagueEntry> = {};
-let kvLoaded = false;
+let configLoaded = false;
 
 export async function ensureExcludedLeaguesLoaded(env?: EnvBindings): Promise<void> {
-  if (kvLoaded || !env?.FOOTBALL_KV) {
-    kvLoaded = true;
-    return;
-  }
+  if (configLoaded) return;
   try {
-    const raw = await env.FOOTBALL_KV.get(KV_EXCLUDED_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Record<string, ExcludedLeagueEntry>;
-      if (parsed && typeof parsed === 'object') {
-        excludedMem = parsed;
+    const fromFs = await firestoreReadConfigMap<ExcludedLeagueEntry>('excluded_leagues', env);
+    if (fromFs) {
+      excludedMem = fromFs;
+      if (env?.FOOTBALL_KV) {
+        await env.FOOTBALL_KV.put(KV_EXCLUDED_KEY, JSON.stringify(excludedMem));
+      }
+      configLoaded = true;
+      return;
+    }
+    if (env?.FOOTBALL_KV) {
+      const raw = await env.FOOTBALL_KV.get(KV_EXCLUDED_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, ExcludedLeagueEntry>;
+        if (parsed && typeof parsed === 'object') {
+          excludedMem = parsed;
+        }
       }
     }
   } catch (err) {
-    console.warn('Failed to load excluded leagues from KV:', err);
+    console.warn('Failed to load excluded leagues:', err);
   } finally {
-    kvLoaded = true;
+    configLoaded = true;
   }
 }
 
-async function persistExcluded(env?: EnvBindings): Promise<'kv' | 'memory'> {
+async function persistExcluded(env?: EnvBindings): Promise<PersistenceBackend> {
+  const fsOk = await firestoreWriteConfigMap('excluded_leagues', excludedMem, env);
   if (env?.FOOTBALL_KV) {
     await env.FOOTBALL_KV.put(KV_EXCLUDED_KEY, JSON.stringify(excludedMem));
-    return 'kv';
   }
-  return 'memory';
+  if (fsOk) return 'firestore';
+  return env?.FOOTBALL_KV ? 'kv' : 'memory';
 }
 
 export function getExcludedLeagues(): ExcludedLeagueEntry[] {
@@ -55,7 +66,7 @@ export function getExcludedLeagues(): ExcludedLeagueEntry[] {
 export async function addExcludedLeague(
   input: { slug: string; name?: string; promiedosId?: string; espnSlug?: string },
   env?: EnvBindings,
-): Promise<{ entry: ExcludedLeagueEntry; persistedIn: 'kv' | 'memory' }> {
+): Promise<{ entry: ExcludedLeagueEntry; persistedIn: PersistenceBackend }> {
   await ensureExcludedLeaguesLoaded(env);
   const mapped = findLeagueMapping(input.slug);
   const slug = mapped?.canonicalSlug ?? (slugifyTvName(input.slug) || input.slug.trim().toLowerCase());
@@ -74,7 +85,7 @@ export async function addExcludedLeague(
 export async function removeExcludedLeague(
   rawSlug: string,
   env?: EnvBindings,
-): Promise<{ removed: boolean; persistedIn: 'kv' | 'memory' }> {
+): Promise<{ removed: boolean; persistedIn: PersistenceBackend }> {
   await ensureExcludedLeaguesLoaded(env);
   const mapped = findLeagueMapping(rawSlug);
   const key = mapped?.canonicalSlug ?? (slugifyTvName(rawSlug) || rawSlug.trim().toLowerCase());
@@ -88,7 +99,7 @@ export async function removeExcludedLeague(
     delete excludedMem[directKey];
     removed = true;
   }
-  const persistedIn = removed ? await persistExcluded(env) : env?.FOOTBALL_KV ? 'kv' : 'memory';
+  const persistedIn: PersistenceBackend = removed ? await persistExcluded(env) : 'firestore';
   return { removed, persistedIn };
 }
 

@@ -1205,7 +1205,7 @@ function renderChannelsView(toastMsg = '', isErr = false) {
 
   const savedTok = sessionStorage.getItem('pivo_admin_token') || '';
   $('#viewRoot').innerHTML =
-    '<section class="hero"><div><h2><b>' + j.count + '</b> Canales TV</h2><p>' + j.mappedIdsCount + ' con ID para tu app · ' + (j.count - j.mappedIdsCount) + ' con id: null · Persistencia: <strong>' + (j.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong> · Seguridad: <strong>' + (j.authMode === 'token-protected' ? 'ADMIN_TOKEN activo' : 'Modo dev abierto') + '</strong></p></div>' +
+    '<section class="hero"><div><h2><b>' + j.count + '</b> Canales TV</h2><p>' + j.mappedIdsCount + ' con ID para tu app · ' + (j.count - j.mappedIdsCount) + ' con id: null · Persistencia: <strong>' + (j.persistence === 'firestore' ? 'Firebase Firestore' : j.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong> · Seguridad: <strong>' + (j.authMode === 'token-protected' ? 'ADMIN_TOKEN activo' : 'Modo dev abierto') + '</strong></p></div>' +
     '<div class="stats"><div class="stat"><b>' + (j.overriddenCount || 0) + '</b><span>Editados</span></div><button class="btn-ghost" id="chCopyBtn" type="button">Copiar JSON</button></div></section>' +
     (toastMsg ? '<div class="ch-toast ' + (isErr ? 'err' : '') + '">' + esc(toastMsg) + '</div>' : '') +
     '<div class="panel"><div class="panel-head"><h3>Agregar o mapear canal</h3>' +
@@ -1340,7 +1340,7 @@ function renderExcludedLeaguesView(toastMsg = '', isErr = false) {
   );
 
   $('#viewRoot').innerHTML =
-    '<section class="hero"><div><h2><b>' + excl.count + '</b> Ligas Excluidas</h2><p>Las ligas excluidas no se extraen ni aparecen en tu API · Persistencia: <strong>' + (excl.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong></p></div></section>' +
+    '<section class="hero"><div><h2><b>' + excl.count + '</b> Ligas Excluidas</h2><p>Las ligas excluidas no se extraen ni aparecen en tu API · Persistencia: <strong>' + (excl.persistence === 'firestore' ? 'Firebase Firestore' : excl.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong></p></div></section>' +
     (toastMsg ? '<div class="ch-toast ' + (isErr ? 'err' : '') + '">' + esc(toastMsg) + '</div>' : '') +
     '<div class="panel"><div class="panel-head"><h3>Excluir liga manualmente (slug, ID o nombre)</h3>' +
       (excl.authMode === 'token-protected' ? '<input class="ch-in mono" id="exAdminTok" type="password" placeholder="ADMIN_TOKEN" value="' + esc(savedTok) + '" style="min-width:200px">' : '') +

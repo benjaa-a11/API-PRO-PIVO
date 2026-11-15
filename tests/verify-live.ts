@@ -371,6 +371,7 @@ async function runLiveE2E(): Promise<void> {
     { ADMIN_TOKEN: 'secreto-test-123' },
   );
   assert.equal(authPut.status, 200);
+  assert.equal(authPut.body.persistedIn, 'firestore');
   assert.equal(authPut.body.data.id, 'mi-app-tyc-play');
   assert.equal(resolveTvChannel('TyC Sports Play').id, 'mi-app-tyc-play');
 
@@ -411,6 +412,7 @@ async function runLiveE2E(): Promise<void> {
     body: JSON.stringify({ slug: 'premier-league' }),
   });
   assert.equal(exclPost.status, 201);
+  assert.equal(exclPost.body.persistedIn, 'firestore');
 
   const exclDetail = await callApi('/api/v1/leagues/premier-league');
   assert.equal(exclDetail.status, 404);
