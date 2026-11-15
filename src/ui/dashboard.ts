@@ -134,6 +134,13 @@ export function buildOpenApiSpec(baseUrl: string) {
           responses: { '200': { description: 'Lista de mapeos de ligas' } },
         },
       },
+      '/api/v1/channels': {
+        get: {
+          summary: 'Diccionario oficial de canales de TV y streaming mapeados con IDs canónicos',
+          parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
+          responses: { '200': { description: 'Lista de canales TV con id canónico o null' } },
+        },
+      },
     },
   };
 }
@@ -187,6 +194,13 @@ img{display:block}
 .nav-item.on{background:rgba(200,255,71,.12);color:var(--lime);font-weight:600}
 .nav-left{display:flex;align-items:center;gap:9px;min-width:0}
 .nav-left span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-ico{width:18px;height:18px;flex:none;object-fit:contain;color:var(--mut)}
+.nav-item.on .nav-ico{color:var(--lime)}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--red);flex:none;margin:0 5px;animation:pulse 1.4s infinite}
+.ev-ico{display:inline-block;width:13px;height:13px;vertical-align:-2px;margin:0 5px;color:var(--lime)}
+.ev-ico.sub{color:var(--mut)}
+.tv-id{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(200,255,71,.14);color:var(--lime);border:1px solid rgba(200,255,71,.28)}
+.tv-id.null{background:rgba(255,255,255,.05);color:var(--mut);border-color:var(--line)}
 .nav-badge{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(255,77,94,.18);color:var(--red);font-weight:700}
 .nav-date-wrap{padding:6px 10px 2px}
 .nav-date{width:100%;padding:8px 11px;border-radius:11px;border:1px solid var(--line);background:var(--bg);font-size:13px;color:var(--tx);color-scheme:dark}
@@ -399,10 +413,10 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
       <div class="nav-sec" data-sec="partidos">
         <button class="nav-sec-title" type="button"><span>Partidos</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="nav-items">
-          <button class="nav-item" data-nav="matches:live"><span class="nav-left"><span>🔴</span><span>En vivo ahora</span></span><span class="nav-badge" id="sideLiveBadge">0</span></button>
-          <button class="nav-item on" data-nav="matches:today"><span class="nav-left"><span>📅</span><span>Agenda de hoy</span></span></button>
-          <button class="nav-item" data-nav="matches:yesterday"><span class="nav-left"><span>⏮️</span><span>Resultados de ayer</span></span></button>
-          <button class="nav-item" data-nav="matches:tomorrow"><span class="nav-left"><span>⏭️</span><span>Próximos (mañana)</span></span></button>
+          <button class="nav-item" data-nav="matches:live"><span class="nav-left"><span class="nav-dot"></span><span>En vivo ahora</span></span><span class="nav-badge" id="sideLiveBadge">0</span></button>
+          <button class="nav-item on" data-nav="matches:today"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Agenda de hoy</span></span></button>
+          <button class="nav-item" data-nav="matches:yesterday"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg><span>Resultados de ayer</span></span></button>
+          <button class="nav-item" data-nav="matches:tomorrow"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m13 17 5-5-5-5M6 17l5-5-5-5"/></svg><span>Próximos (mañana)</span></span></button>
           <div class="nav-date-wrap">
             <input class="nav-date" type="date" id="sideDatePick" title="Ir a una fecha específica">
           </div>
@@ -412,40 +426,41 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
       <div class="nav-sec" data-sec="ligas">
         <button class="nav-sec-title" type="button"><span>Ligas &amp; Tablas</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="nav-items">
-          <button class="nav-item" data-nav="league:liga-profesional"><span class="nav-left"><span>🇦🇷</span><span>Liga Profesional</span></span></button>
-          <button class="nav-item" data-nav="league:copa-argentina"><span class="nav-left"><span>🏆</span><span>Copa Argentina</span></span></button>
-          <button class="nav-item" data-nav="league:primera-nacional"><span class="nav-left"><span>🇦🇷</span><span>Primera Nacional</span></span></button>
-          <button class="nav-item" data-nav="league:copa-libertadores"><span class="nav-left"><span>🌎</span><span>Copa Libertadores</span></span></button>
-          <button class="nav-item" data-nav="league:copa-sudamericana"><span class="nav-left"><span>🌎</span><span>Copa Sudamericana</span></span></button>
-          <button class="nav-item" data-nav="league:champions-league"><span class="nav-left"><span>⭐</span><span>Champions League</span></span></button>
-          <button class="nav-item" data-nav="league:premier-league"><span class="nav-left"><span>🏴󠁧󠁢󠁥󠁮󠁧󠁿</span><span>Premier League</span></span></button>
-          <button class="nav-item" data-nav="league:la-liga"><span class="nav-left"><span>🇪🇸</span><span>LaLiga</span></span></button>
-          <button class="nav-item" data-nav="league:serie-a"><span class="nav-left"><span>🇮🇹</span><span>Serie A</span></span></button>
-          <button class="nav-item" data-nav="league:bundesliga"><span class="nav-left"><span>🇩🇪</span><span>Bundesliga</span></span></button>
-          <button class="nav-item" data-nav="league:brasileirao"><span class="nav-left"><span>🇧🇷</span><span>Brasileirão</span></span></button>
-          <button class="nav-item" data-nav="catalog"><span class="nav-left"><span>🗂️</span><span>Todas las ligas (190+)</span></span></button>
+          <button class="nav-item" data-nav="league:liga-profesional"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/hc/1" alt="" loading="lazy"><span>Liga Profesional</span></span></button>
+          <button class="nav-item" data-nav="league:copa-argentina"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/gea/1" alt="" loading="lazy"><span>Copa Argentina</span></span></button>
+          <button class="nav-item" data-nav="league:primera-nacional"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/ebj/1" alt="" loading="lazy"><span>Primera Nacional</span></span></button>
+          <button class="nav-item" data-nav="league:copa-libertadores"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/bac/1" alt="" loading="lazy"><span>Copa Libertadores</span></span></button>
+          <button class="nav-item" data-nav="league:copa-sudamericana"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/dij/1" alt="" loading="lazy"><span>Copa Sudamericana</span></span></button>
+          <button class="nav-item" data-nav="league:champions-league"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/fhc/1" alt="" loading="lazy"><span>Champions League</span></span></button>
+          <button class="nav-item" data-nav="league:premier-league"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/h/1" alt="" loading="lazy"><span>Premier League</span></span></button>
+          <button class="nav-item" data-nav="league:laliga"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/bb/1" alt="" loading="lazy"><span>LaLiga</span></span></button>
+          <button class="nav-item" data-nav="league:serie-a"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/bh/1" alt="" loading="lazy"><span>Serie A</span></span></button>
+          <button class="nav-item" data-nav="league:bundesliga"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/cf/1" alt="" loading="lazy"><span>Bundesliga</span></span></button>
+          <button class="nav-item" data-nav="league:brasileirao"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/league/bbd/1" alt="" loading="lazy"><span>Brasileirão</span></span></button>
+          <button class="nav-item" data-nav="catalog"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg><span>Todas las ligas (190+)</span></span></button>
         </div>
       </div>
 
       <div class="nav-sec" data-sec="clubes">
         <button class="nav-sec-title" type="button"><span>Clubes &amp; Búsqueda</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="nav-items">
-          <button class="nav-item" data-nav="search"><span class="nav-left"><span>🔍</span><span>Buscador global</span></span></button>
-          <button class="nav-item" data-nav="team:pm-igg"><span class="nav-left"><span>🛡️</span><span>Boca Juniors</span></span></button>
-          <button class="nav-item" data-nav="team:pm-igj"><span class="nav-left"><span>🛡️</span><span>River Plate</span></span></button>
-          <button class="nav-item" data-nav="team:pm-igh"><span class="nav-left"><span>🛡️</span><span>Racing Club</span></span></button>
-          <button class="nav-item" data-nav="team:pm-igd"><span class="nav-left"><span>🛡️</span><span>Independiente</span></span></button>
-          <button class="nav-item" data-nav="team:pm-igf"><span class="nav-left"><span>🛡️</span><span>San Lorenzo</span></span></button>
+          <button class="nav-item" data-nav="search"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Buscador global</span></span></button>
+          <button class="nav-item" data-nav="team:pm-igg"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/team/igg/4" alt="" loading="lazy"><span>Boca Juniors</span></span></button>
+          <button class="nav-item" data-nav="team:pm-igj"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/team/igj/4" alt="" loading="lazy"><span>River Plate</span></span></button>
+          <button class="nav-item" data-nav="team:pm-igh"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/team/igh/4" alt="" loading="lazy"><span>Racing Club</span></span></button>
+          <button class="nav-item" data-nav="team:pm-igd"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/team/igd/4" alt="" loading="lazy"><span>Independiente</span></span></button>
+          <button class="nav-item" data-nav="team:pm-igf"><span class="nav-left"><img class="nav-ico" src="https://api.promiedos.com.ar/images/team/igf/4" alt="" loading="lazy"><span>San Lorenzo</span></span></button>
         </div>
       </div>
 
       <div class="nav-sec" data-sec="api">
         <button class="nav-sec-title" type="button"><span>API &amp; Sistema</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="nav-items">
-          <button class="nav-item" data-nav="explorer"><span class="nav-left"><span>⚡</span><span>Explorador JSON</span></span></button>
-          <button class="nav-item" data-nav="mappings"><span class="nav-left"><span>🔗</span><span>Mapeos Promiedos/ESPN</span></span></button>
-          <button class="nav-item" data-nav="health"><span class="nav-left"><span>💚</span><span>Salud &amp; Caché</span></span></button>
-          <a class="nav-item" href="${cleanBase}/openapi.json" target="_blank"><span class="nav-left"><span>📄</span><span>OpenAPI 3.1 JSON ↗</span></span></a>
+          <button class="nav-item" data-nav="explorer"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg><span>Explorador JSON</span></span></button>
+          <button class="nav-item" data-nav="channels"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/></svg><span>Canales TV (Mapeo)</span></span></button>
+          <button class="nav-item" data-nav="mappings"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Mapeos de Ligas</span></span></button>
+          <button class="nav-item" data-nav="health"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Salud &amp; Caché</span></span></button>
+          <a class="nav-item" href="${cleanBase}/openapi.json" target="_blank"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>OpenAPI 3.1 JSON ↗</span></span></a>
         </div>
       </div>
     </div>
@@ -483,6 +498,8 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
 <script>
 const REFRESH_MS = 30000;
 const STATUS_ES = {'First Half':'Primer Tiempo','Second Half':'Segundo Tiempo','Halftime':'Entretiempo','Full Time':'Finalizado','En progreso':'En juego','Scheduled':'Programado'};
+const ICO_GOAL = '<svg class="ev-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m12 7 3 2.5-1 3.5h-4L9 9.5Z"/></svg>';
+const ICO_SUB = '<svg class="ev-ico sub" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 10 5-5 5 5M17 14l-5 5-5-5"/></svg>';
 
 const S = {
   view: 'matches', // matches | league | catalog | team | search | explorer | mappings | health
@@ -605,6 +622,9 @@ async function navigate(target, manual = false) {
   } else if (section === 'mappings') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Diccionario de mapeos</strong>';
     await loadMappings();
+  } else if (section === 'channels') {
+    $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Canales TV</strong>';
+    await loadChannels();
   } else if (section === 'health') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Salud &amp; Caché</strong>';
     await loadHealth();
@@ -708,7 +728,7 @@ function renderMatchCard(m, i) {
     ? '<div class="score t">' + esc(m.timeLocalAr || '--:--') + '</div>'
     : '<div class="score">' + (h.score ?? 0) + '<em>-</em>' + (a.score ?? 0) + pen + '</div>';
   const stx = k === 'live' ? (esc(st.minuteDisplay || '') + ' ' + esc(stLabel(m))) : k === 'done' ? (st.state === 'PEN' ? 'Penales' : 'Finalizado') : (esc(m.dateLocalAr || '') + ' ' + esc(m.timeLocalAr || ''));
-  const sc = (side) => (m.goals || []).filter((g) => g.teamSide === side).map((g) => '<span>⚽ ' + esc(g.playerShortName || g.playerName) + ' ' + esc(g.minuteDisplay || (g.minute + "'")) + '</span>').join('<br>');
+  const sc = (side) => (m.goals || []).filter((g) => g.teamSide === side).map((g) => '<span>' + ICO_GOAL + esc(g.playerShortName || g.playerName) + ' ' + esc(g.minuteDisplay || (g.minute + "'")) + '</span>').join('<br>');
   const gs = (m.goals || []).length ? '<div class="scorers"><div>' + sc('home') + '</div><div>' + sc('away') + '</div></div>' : '';
   const rc = (t) => t.redCards ? '<span class="red" title="Expulsados: ' + t.redCards + '"></span>' : '';
 
@@ -779,13 +799,13 @@ function renderSheet() {
 
     const fmtEv = (e) => {
       if (e.type === 'goal' || e.type === 'penalty_goal' || e.type === 'own_goal' || e.type === 'penalty_shootout_goal') {
-        return '⚽ ' + esc(e.playerName || 'Gol') + (e.type === 'penalty_goal' ? ' (p)' : e.type === 'own_goal' ? ' (e/c)' : '') + (e.secondaryPlayerName ? ' <span class="muted">(asist. ' + esc(e.secondaryPlayerName) + ')</span>' : '');
+        return ICO_GOAL + esc(e.playerName || 'Gol') + (e.type === 'penalty_goal' ? ' (p)' : e.type === 'own_goal' ? ' (e/c)' : '') + (e.secondaryPlayerName ? ' <span class="muted">(asist. ' + esc(e.secondaryPlayerName) + ')</span>' : '');
       }
       if (e.type === 'yellow_card' || e.type === 'red_card' || e.type === 'second_yellow') {
         return '<span class="cd ' + esc(e.type.replace('_card', '')) + '"></span>' + esc(e.playerName || 'Tarjeta');
       }
       if (e.type === 'substitution') {
-        return '🔄 <b>' + esc(e.playerName || '') + '</b>' + (e.secondaryPlayerName ? ' <span class="muted">por ' + esc(e.secondaryPlayerName) + '</span>' : '');
+        return ICO_SUB + '<b>' + esc(e.playerName || '') + '</b>' + (e.secondaryPlayerName ? ' <span class="muted">por ' + esc(e.secondaryPlayerName) + '</span>' : '');
       }
       return esc(e.description || e.playerName || e.type);
     };
@@ -796,12 +816,12 @@ function renderSheet() {
 
     const ml = m.odds?.moneyline;
     const odds = ml ? '<h4>Cuotas 1X2</h4><div class="odds"><div><b>' + esc(ml.home ?? '-') + '</b><span>' + esc(h.shortName) + '</span></div><div><b>' + esc(ml.draw ?? '-') + '</b><span>Empate</span></div><div><b>' + esc(ml.away ?? '-') + '</b><span>' + esc(a.shortName) + '</span></div></div>' : '';
-    const tv = (m.broadcasts || []).length ? '<h4>Dónde verlo</h4><div class="tv">' + m.broadcasts.map((b) => '<span>' + img(b.logo) + esc(b.name) + '</span>').join('') + '</div>' : '';
+    const tv = (m.broadcasts || []).length ? '<h4>Dónde verlo</h4><div class="tv">' + m.broadcasts.map((b) => '<span>' + img(b.logo) + esc(b.name) + '<code class="tv-id ' + (b.id ? '' : 'null') + '">' + esc(b.id ?? 'null') + '</code></span>').join('') + '</div>' : '';
     const infoList = det?.gameInfo?.length ? det.gameInfo : (m.venue?.name ? [{ label: 'Estadio', value: [m.venue.name, m.venue.city, m.venue.country].filter(Boolean).join(', ') }] : []);
     const infoHtml = infoList.length ? '<h4>Ficha del partido</h4><div class="kv">' + infoList.map((i) => '<div><small>' + esc(i.label) + '</small>' + esc(i.value) + '</div>').join('') + '</div>' : '';
 
     bodyHtml = '<h4>Cronología</h4>' + tl +
-      '<h4>Tarjetas</h4><div class="kv"><div><small>' + esc(h.shortName) + '</small>🟨 ' + (h.yellowCards || 0) + ' · 🟥 ' + (h.redCards || 0) + '</div><div><small>' + esc(a.shortName) + '</small>🟨 ' + (a.yellowCards || 0) + ' · 🟥 ' + (a.redCards || 0) + '</div></div>' +
+      '<h4>Tarjetas</h4><div class="kv"><div><small>' + esc(h.shortName) + '</small><span class="cd yellow"></span>' + (h.yellowCards || 0) + ' &nbsp; <span class="cd red"></span>' + (h.redCards || 0) + '</div><div><small>' + esc(a.shortName) + '</small><span class="cd yellow"></span>' + (a.yellowCards || 0) + ' &nbsp; <span class="cd red"></span>' + (a.redCards || 0) + '</div></div>' +
       odds + tv + infoHtml;
   } else if (S.sheetTab === 'stats') {
     const stats = det?.statistics || [];
@@ -1045,7 +1065,7 @@ function renderSearchView() {
 
 /* ===== Vista: Explorador JSON / Mapeos / Salud ===== */
 function renderExplorerView() {
-  const presets = ['/api/v1/live','/api/v1/matches?date=today','/api/v1/leagues/liga-profesional','/api/v1/leagues/premier-league','/api/v1/teams/pm-igg','/api/v1/search?q=Boca','/api/v1/health'];
+  const presets = ['/api/v1/live','/api/v1/matches?date=today','/api/v1/leagues/liga-profesional','/api/v1/channels','/api/v1/teams/pm-igg','/api/v1/search?q=Boca','/api/v1/health'];
   $('#viewRoot').innerHTML =
     '<section class="hero"><div><h2>Explorador de Endpoints</h2><p>Probá cualquier ruta de la API en vivo</p></div></section>' +
     '<div class="ep-row">' + presets.map((p) => '<button class="btn-ghost" data-ep="' + esc(p) + '">' + esc(p) + '</button>').join('') + '</div>' +
@@ -1075,6 +1095,15 @@ async function loadMappings() {
     '<section class="hero"><div><h2><b>' + j.count + '</b> Ligas Mapeadas</h2><p>Equivalencias directas Promiedos ↔ ESPN Argentina</p></div></section>' +
     '<div class="panel"><div class="table-wrap"><table class="tbl"><thead><tr><th>Prioridad</th><th>Nombre</th><th>Slug Canónico</th><th>Promiedos ID</th><th>ESPN Slug</th></tr></thead><tbody>' +
     (j.data || []).map((m) => '<tr><td class="num">' + m.priority + '</td><td><button class="team-link" data-nav="league:' + esc(m.canonicalSlug) + '">' + esc(m.name) + '</button></td><td style="font-family:var(--mono)">' + esc(m.canonicalSlug) + '</td><td style="font-family:var(--mono);color:var(--lime)">' + esc(m.promiedosId || '-') + '</td><td style="font-family:var(--mono);color:var(--amber)">' + esc(m.espnSlug || '-') + '</td></tr>').join('') +
+    '</tbody></table></div></div>';
+}
+
+async function loadChannels() {
+  const j = await apiGet('/api/v1/channels');
+  $('#viewRoot').innerHTML =
+    '<section class="hero"><div><h2><b>' + j.count + '</b> Canales TV</h2><p>' + j.mappedIdsCount + ' con ID canónico directo para tu app y ' + (j.count - j.mappedIdsCount) + ' plataformas con id: null</p></div></section>' +
+    '<div class="panel"><div class="table-wrap"><table class="tbl"><thead><tr><th>Canal</th><th>ID Canónico</th><th>Categoría</th><th>País</th><th>Alias reconocidos</th></tr></thead><tbody>' +
+    (j.data || []).map((ch) => '<tr><td><strong>' + esc(ch.name) + '</strong></td><td><code class="tv-id ' + (ch.id ? '' : 'null') + '">' + esc(ch.id ?? 'null') + '</code></td><td class="muted">' + esc(ch.category) + '</td><td class="num">' + esc(ch.country) + '</td><td class="muted" style="font-size:12px">' + esc((ch.aliases || []).join(', ')) + '</td></tr>').join('') +
     '</tbody></table></div></div>';
 }
 

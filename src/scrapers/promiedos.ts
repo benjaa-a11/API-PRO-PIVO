@@ -2,6 +2,7 @@ import {
   LEAGUE_MAPPINGS,
   PROMIEDOS_EVENT_TYPE_MAP,
   findLeagueMapping,
+  resolveTvChannel,
 } from '../config/mappings.ts';
 import type {
   BracketStage,
@@ -269,14 +270,19 @@ function mapPromiedosStatus(
 
 function mapPromiedosBroadcasts(rawNetworks: unknown): TvBroadcast[] {
   if (!Array.isArray(rawNetworks)) return [];
-  return rawNetworks
-    .filter((n) => n && (n.name || n.id))
-    .map((n) => ({
-      id: n.id ? String(n.id) : undefined,
-      name: String(n.name ?? n.id ?? '').trim(),
-      logo: n.id ? promiedosTvLogo(String(n.id)) : undefined,
-      country: 'AR',
-    }));
+  const byKey = new Map<string, TvBroadcast>();
+  for (const n of rawNetworks) {
+    if (!n || (!n.name && !n.id)) continue;
+    const promId = n.id ? String(n.id) : undefined;
+    const name = String(n.name ?? n.id ?? '').trim();
+    if (!name) continue;
+    const resolved = resolveTvChannel(name, promId, promId ? promiedosTvLogo(promId) : undefined);
+    const key = (resolved.id || resolved.slug || resolved.name).toLowerCase();
+    if (!byKey.has(key)) {
+      byKey.set(key, resolved);
+    }
+  }
+  return Array.from(byKey.values());
 }
 
 function mapPromiedosOdds(rawOdds: unknown): MatchOdds | undefined {
@@ -803,16 +809,23 @@ export async function fetchPromiedosMatchDetail(
         match.venue = { name: value };
       } else if (low.includes('árbitro') || low.includes('arbitro')) {
         referee = value;
-      } else if (low.includes('tv') && match.broadcasts.length === 0) {
-        for (const ch of value.split(',')) {
+      } else if (low.includes('tv')) {
+        for (const ch of value.split(/[,/|]+/)) {
           const name = ch.trim();
-          if (name) infoBroadcasts.push({ name, country: 'AR' });
+          if (name) infoBroadcasts.push(resolveTvChannel(name));
         }
       }
     }
   }
-  if (match.broadcasts.length === 0 && infoBroadcasts.length > 0) {
-    match.broadcasts = infoBroadcasts;
+  if (infoBroadcasts.length > 0) {
+    const mergedMap = new Map<string, TvBroadcast>();
+    for (const b of [...match.broadcasts, ...infoBroadcasts]) {
+      const k = (b.id || b.slug || b.name).toLowerCase();
+      if (!mergedMap.has(k)) {
+        mergedMap.set(k, b);
+      }
+    }
+    match.broadcasts = Array.from(mergedMap.values());
   }
 
   let prediction: MatchPrediction | undefined;

@@ -1,4 +1,4 @@
-import type { MatchEventType } from '../types/schema.ts';
+import type { MatchEventType, TvBroadcast } from '../types/schema.ts';
 
 export interface LeagueMapping {
   canonicalSlug: string;
@@ -719,4 +719,118 @@ export function findLeagueMapping(identifier: string): LeagueMapping | undefined
       m.espnSlug?.toLowerCase() === lower ||
       m.espnId === lower,
   );
+}
+
+export interface TvChannelMapping {
+  id: string | null;
+  name: string;
+  slug: string;
+  category: 'tv' | 'streaming' | 'ppv';
+  country: string;
+  aliases: string[];
+}
+
+export const TV_CHANNEL_MAPPINGS: TvChannelMapping[] = [
+  { id: 'tycsports', name: 'TyC Sports', slug: 'tyc-sports', category: 'tv', country: 'AR', aliases: ['tyc sports', 'tyc', 'tyc sports hd'] },
+  { id: 'tycsports2', name: 'TyC Sports 2', slug: 'tyc-sports-2', category: 'tv', country: 'AR', aliases: ['tyc sports 2'] },
+  { id: null, name: 'TyC Sports Play', slug: 'tyc-sports-play', category: 'streaming', country: 'AR', aliases: ['tyc sports play', 'tyc play'] },
+  { id: 'tntsports', name: 'TNT Sports', slug: 'tnt-sports', category: 'ppv', country: 'AR', aliases: ['tnt sports', 'tnt sports ar', 'tnt sports argentina', 'tnt sports hd', 'tnt sports premium'] },
+  { id: 'espnpremium', name: 'ESPN Premium', slug: 'espn-premium', category: 'ppv', country: 'AR', aliases: ['espn premium', 'espn premium hd', 'fox sports premium'] },
+  { id: 'espn', name: 'ESPN', slug: 'espn', category: 'tv', country: 'AR', aliases: ['espn', 'espn hd', 'espn 1', 'espn sur', 'espn latinoamerica'] },
+  { id: 'espn2', name: 'ESPN 2', slug: 'espn-2', category: 'tv', country: 'AR', aliases: ['espn 2', 'espn2', 'espn 2 sur', 'espn 2 hd'] },
+  { id: 'espn3', name: 'ESPN 3', slug: 'espn-3', category: 'tv', country: 'AR', aliases: ['espn 3', 'espn3', 'espn 3 hd'] },
+  { id: 'espn4', name: 'ESPN 4', slug: 'espn-4', category: 'tv', country: 'AR', aliases: ['espn 4', 'espn4', 'espn extra'] },
+  { id: 'espn5', name: 'ESPN 5', slug: 'espn-5', category: 'tv', country: 'AR', aliases: ['espn 5', 'espn5'] },
+  { id: 'foxsports', name: 'Fox Sports', slug: 'fox-sports', category: 'tv', country: 'AR', aliases: ['fox sports', 'fox sports 1', 'fox sports ar', 'fox sports argentina', 'fox sports hd'] },
+  { id: 'foxsports2', name: 'Fox Sports 2', slug: 'fox-sports-2', category: 'tv', country: 'AR', aliases: ['fox sports 2', 'fox sports 2 hd'] },
+  { id: 'foxsports3', name: 'Fox Sports 3', slug: 'fox-sports-3', category: 'tv', country: 'AR', aliases: ['fox sports 3', 'fox sports 3 hd'] },
+  { id: 'dsports', name: 'DSports', slug: 'dsports', category: 'tv', country: 'AR', aliases: ['dsports', 'directv sports', 'dtv sports', 'directv', 'dsports hd'] },
+  { id: 'dsports2', name: 'DSports 2', slug: 'dsports-2', category: 'tv', country: 'AR', aliases: ['dsports 2', 'directv sports 2', 'dsports2'] },
+  { id: 'dsportsplus', name: 'DSports+', slug: 'dsports-plus', category: 'tv', country: 'AR', aliases: ['dsports+', 'dsports plus', 'directv sports+', 'directv sports plus'] },
+  { id: 'telefe', name: 'Telefe', slug: 'telefe', category: 'tv', country: 'AR', aliases: ['telefe', 'telefe hd', 'canal 11'] },
+  { id: 'tvpublica', name: 'TV Pública', slug: 'tv-publica', category: 'tv', country: 'AR', aliases: ['tv publica', 'television publica', 'tvp', 'canal 7'] },
+  { id: 'eltrece', name: 'El Trece', slug: 'el-trece', category: 'tv', country: 'AR', aliases: ['el trece', 'eltrece', 'canal 13'] },
+  { id: 'elnueve', name: 'El Nueve', slug: 'el-nueve', category: 'tv', country: 'AR', aliases: ['el nueve', 'elnueve', 'canal 9'] },
+  { id: 'deportv', name: 'DeporTV', slug: 'deportv', category: 'tv', country: 'AR', aliases: ['deportv', 'dxtv'] },
+  { id: 'tnt', name: 'TNT', slug: 'tnt', category: 'tv', country: 'AR', aliases: ['tnt'] },
+  { id: 'space', name: 'Space', slug: 'space', category: 'tv', country: 'AR', aliases: ['space'] },
+  { id: 'goltv', name: 'GolTV', slug: 'goltv', category: 'tv', country: 'UY', aliases: ['goltv', 'gol tv'] },
+  { id: 'vtv', name: 'VTV', slug: 'vtv', category: 'tv', country: 'UY', aliases: ['vtv', 'vtv plus', 'vtv+'] },
+  { id: 'winsports', name: 'Win Sports', slug: 'win-sports', category: 'tv', country: 'CO', aliases: ['win sports', 'win sports+', 'win sports plus'] },
+  { id: 'sportv', name: 'SporTV', slug: 'sportv', category: 'tv', country: 'BR', aliases: ['sportv', 'sportv 2', 'sportv 3'] },
+  { id: 'premiere', name: 'Premiere', slug: 'premiere', category: 'ppv', country: 'BR', aliases: ['premiere', 'premiere fc'] },
+  { id: 'globo', name: 'TV Globo', slug: 'tv-globo', category: 'tv', country: 'BR', aliases: ['tv globo', 'globo'] },
+  { id: 'movistar', name: 'Movistar LaLiga', slug: 'movistar-laliga', category: 'tv', country: 'ES', aliases: ['movistar', 'movistar laliga', 'movistar+', 'movistar liga de campeones'] },
+  { id: 'dazn', name: 'DAZN', slug: 'dazn', category: 'streaming', country: 'INT', aliases: ['dazn', 'dazn es', 'dazn 1'] },
+  { id: null, name: 'Disney+ Premium', slug: 'disney-plus-premium', category: 'streaming', country: 'AR', aliases: ['disney+ premium', 'disney plus premium', 'disney+ (arg)', 'disney+'] },
+  { id: null, name: 'Disney+ Estándar', slug: 'disney-plus-estandar', category: 'streaming', country: 'AR', aliases: ['disney+ estandar', 'disney plus estandar'] },
+  { id: null, name: 'DGO', slug: 'dgo', category: 'streaming', country: 'AR', aliases: ['dgo', 'directv go'] },
+  { id: null, name: 'Flow', slug: 'flow', category: 'streaming', country: 'AR', aliases: ['flow', 'cablevision flow'] },
+  { id: null, name: 'Star+', slug: 'star-plus', category: 'streaming', country: 'AR', aliases: ['star+', 'star plus'] },
+  { id: null, name: 'Paramount+', slug: 'paramount-plus', category: 'streaming', country: 'AR', aliases: ['paramount+', 'paramount plus'] },
+  { id: null, name: 'Max', slug: 'max', category: 'streaming', country: 'AR', aliases: ['max', 'hbo max'] },
+  { id: null, name: 'Prime Video', slug: 'prime-video', category: 'streaming', country: 'INT', aliases: ['prime video', 'amazon prime video'] },
+  { id: null, name: 'Apple TV', slug: 'apple-tv', category: 'streaming', country: 'INT', aliases: ['apple tv', 'apple tv+', 'mls season pass'] },
+  { id: null, name: 'AFA Play', slug: 'afa-play', category: 'streaming', country: 'AR', aliases: ['afa play'] },
+  { id: null, name: 'LPF Play', slug: 'lpf-play', category: 'streaming', country: 'AR', aliases: ['lpf play'] },
+  { id: null, name: 'Mi Telefe', slug: 'mi-telefe', category: 'streaming', country: 'AR', aliases: ['mi telefe'] },
+  { id: null, name: 'Pluto TV', slug: 'pluto-tv', category: 'streaming', country: 'AR', aliases: ['pluto tv'] },
+  { id: null, name: 'ViX', slug: 'vix', category: 'streaming', country: 'INT', aliases: ['vix', 'vix+'] },
+  { id: null, name: 'Fanatiz', slug: 'fanatiz', category: 'streaming', country: 'INT', aliases: ['fanatiz'] },
+  { id: null, name: 'YouTube', slug: 'youtube', category: 'streaming', country: 'INT', aliases: ['youtube', 'youtube live'] },
+];
+
+function normalizeTvKey(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function slugifyTvName(input: string): string {
+  return normalizeTvKey(input)
+    .replace(/\+/g, '-plus')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+const TV_ALIAS_INDEX: Map<string, TvChannelMapping> = new Map();
+for (const entry of TV_CHANNEL_MAPPINGS) {
+  TV_ALIAS_INDEX.set(normalizeTvKey(entry.name), entry);
+  for (const alias of entry.aliases) {
+    TV_ALIAS_INDEX.set(normalizeTvKey(alias), entry);
+  }
+}
+
+export function resolveTvChannel(
+  rawName: string,
+  rawPromiedosId?: string,
+  logo?: string,
+): TvBroadcast {
+  const cleaned = rawName.replace(/\s+/g, ' ').trim();
+  const key = normalizeTvKey(cleaned);
+  const hit = TV_ALIAS_INDEX.get(key);
+  if (hit) {
+    return {
+      id: hit.id,
+      name: hit.name,
+      slug: hit.slug,
+      ...(rawPromiedosId ? { promiedosId: rawPromiedosId } : {}),
+      ...(logo ? { logo } : {}),
+      country: hit.country,
+      category: hit.category,
+      mapped: true,
+    };
+  }
+  return {
+    id: null,
+    name: cleaned,
+    slug: slugifyTvName(cleaned),
+    ...(rawPromiedosId ? { promiedosId: rawPromiedosId } : {}),
+    ...(logo ? { logo } : {}),
+    country: 'AR',
+    mapped: false,
+  };
 }

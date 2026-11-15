@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import worker from '../src/index.ts';
+import { resolveTvChannel } from '../src/config/mappings.ts';
 import { mergeMatchDetails, mergeMatches } from '../src/services/fusion.ts';
+import { renderDashboardHtml } from '../src/ui/dashboard.ts';
 import type {
   EnvBindings,
   UnifiedMatch,
@@ -280,6 +282,31 @@ function runUnitInvariants(): void {
   assert.equal(mergedDetail.lineups.home?.starters[0].stats?.saves, 3);
   assert.equal(mergedDetail.lineups.away?.starters[0].stats?.goals, 1);
 
+  // TV channel mapping invariants
+  const tyc = resolveTvChannel('TyC Sports', 'cbcj', 'https://api.promiedos.com.ar/images/tvnetworks/cbcj');
+  assert.equal(tyc.id, 'tycsports');
+  assert.equal(tyc.name, 'TyC Sports');
+  assert.equal(tyc.promiedosId, 'cbcj');
+  assert.equal(tyc.mapped, true);
+
+  const tycPlay = resolveTvChannel('TyC Sports Play');
+  assert.equal(tycPlay.id, null);
+  assert.equal(tycPlay.name, 'TyC Sports Play');
+  assert.equal(tycPlay.mapped, true);
+
+  const espnPrem = resolveTvChannel('ESPN Premium');
+  assert.equal(espnPrem.id, 'espnpremium');
+  assert.equal(espnPrem.mapped, true);
+
+  const unknownCh = resolveTvChannel('Canal Local Desconocido');
+  assert.equal(unknownCh.id, null);
+  assert.equal(unknownCh.mapped, false);
+
+  // Dashboard zero-emoji invariant
+  const dashHtml = renderDashboardHtml('http://localhost:8787');
+  const emojiMatch = dashHtml.match(/[\u{1F300}-\u{1FAFF}]|\u26BD|\u26A1|\u2B50|\u{1F1E6}-\u{1F1FF}/u);
+  assert.equal(emojiMatch, null, `Unexpected emoji in dashboard HTML: ${emojiMatch?.[0]}`);
+
   console.log('Unit invariants PASSED.');
 }
 
@@ -307,6 +334,16 @@ async function runLiveE2E(): Promise<void> {
   assert.equal(mappings.status, 200);
   assert.ok(Array.isArray(mappings.body.data) && mappings.body.data.length >= 40);
   console.log(`GET /api/v1/mappings -> 200 OK (${mappings.body.data.length} leagues)`);
+
+  const channels = await callApi('/api/v1/channels');
+  assert.equal(channels.status, 200);
+  assert.equal(channels.body.ok, true);
+  assert.ok(Array.isArray(channels.body.data) && channels.body.data.length >= 30);
+  const tycEntry = channels.body.data.find((c: { name: string }) => c.name === 'TyC Sports');
+  const tycPlayEntry = channels.body.data.find((c: { name: string }) => c.name === 'TyC Sports Play');
+  assert.equal(tycEntry?.id, 'tycsports');
+  assert.equal(tycPlayEntry?.id, null);
+  console.log(`GET /api/v1/channels -> 200 OK (${channels.body.count} channels, ${channels.body.mappedIdsCount} with id)`);
 
   const todayRes = await callApi('/api/v1/matches?date=today');
   assert.equal(todayRes.status, 200);

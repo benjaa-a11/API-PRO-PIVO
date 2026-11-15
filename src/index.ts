@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
-import { LEAGUE_MAPPINGS } from './config/mappings.ts';
+import { LEAGUE_MAPPINGS, TV_CHANNEL_MAPPINGS } from './config/mappings.ts';
 import { footballService, type ServiceResult } from './services/fusion.ts';
 import type { ApiResponse, EnvBindings } from './types/schema.ts';
 import { buildOpenApiSpec, renderDashboardHtml } from './ui/dashboard.ts';
@@ -116,6 +116,33 @@ app.get('/api/v1/mappings', (c) => {
     ok: true,
     count: LEAGUE_MAPPINGS.length,
     data: LEAGUE_MAPPINGS,
+  });
+});
+
+app.get('/api/v1/channels', (c) => {
+  const q = (c.req.query('q') ?? '').trim().toLowerCase();
+  const data = q
+    ? TV_CHANNEL_MAPPINGS.filter(
+        (ch) =>
+          ch.name.toLowerCase().includes(q) ||
+          (ch.id && ch.id.toLowerCase().includes(q)) ||
+          ch.slug.toLowerCase().includes(q) ||
+          ch.aliases.some((a) => a.includes(q)),
+      )
+    : TV_CHANNEL_MAPPINGS;
+  const mappedIdsCount = data.filter((ch) => ch.id !== null).length;
+  return c.json({
+    ok: true,
+    count: data.length,
+    mappedIdsCount,
+    data: data.map((ch) => ({
+      id: ch.id,
+      name: ch.name,
+      slug: ch.slug,
+      category: ch.category,
+      country: ch.country,
+      aliases: ch.aliases,
+    })),
   });
 });
 

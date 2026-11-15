@@ -1,4 +1,4 @@
-import { LEAGUE_MAPPINGS, findLeagueMapping } from '../config/mappings.ts';
+import { LEAGUE_MAPPINGS, findLeagueMapping, resolveTvChannel } from '../config/mappings.ts';
 import type {
   CommentaryItem,
   LineupPlayer,
@@ -249,14 +249,18 @@ function mapEspnStatus(rawStatus: any, hasShootout: boolean): MatchStatus {
 }
 
 function mapEspnBroadcasts(comp: any): TvBroadcast[] {
-  const broadcasts: TvBroadcast[] = [];
-  const seen = new Set<string>();
+  const byKey = new Map<string, TvBroadcast>();
 
-  const add = (name: string) => {
-    const clean = name.trim();
-    if (!clean || seen.has(clean.toLowerCase())) return;
-    seen.add(clean.toLowerCase());
-    broadcasts.push({ name: clean, country: 'AR' });
+  const add = (raw: string) => {
+    for (const part of raw.split(/[,/|]+/)) {
+      const clean = part.trim();
+      if (!clean) continue;
+      const resolved = resolveTvChannel(clean);
+      const key = (resolved.id || resolved.slug || resolved.name).toLowerCase();
+      if (!byKey.has(key)) {
+        byKey.set(key, resolved);
+      }
+    }
   };
 
   if (Array.isArray(comp?.broadcasts)) {
@@ -265,6 +269,8 @@ function mapEspnBroadcasts(comp: any): TvBroadcast[] {
         for (const n of b.names) add(String(n));
       } else if (b?.media?.shortName) {
         add(String(b.media.shortName));
+      } else if (b?.media?.name) {
+        add(String(b.media.name));
       } else if (typeof b === 'string') {
         add(b);
       }
@@ -273,12 +279,13 @@ function mapEspnBroadcasts(comp: any): TvBroadcast[] {
   if (Array.isArray(comp?.geoBroadcasts)) {
     for (const gb of comp.geoBroadcasts) {
       if (gb?.media?.shortName) add(String(gb.media.shortName));
+      else if (gb?.media?.name) add(String(gb.media.name));
     }
   }
   if (typeof comp?.broadcast === 'string' && comp.broadcast) {
-    for (const part of comp.broadcast.split('/')) add(part);
+    add(comp.broadcast);
   }
-  return broadcasts;
+  return Array.from(byKey.values());
 }
 
 function mapEspnOdds(rawOdds: unknown): MatchOdds | undefined {
@@ -658,9 +665,17 @@ export async function fetchEspnMatchSummary(
     logoDark: darkLogo,
   });
 
-  // Broadcasts de summary
-  if (Array.isArray(data?.broadcasts) && data.broadcasts.length > 0) {
-    match.broadcasts = mapEspnBroadcasts({ broadcasts: data.broadcasts });
+  // Broadcasts de summary + headerComp
+  const summaryBroadcasts = Array.isArray(data?.broadcasts) && data.broadcasts.length > 0
+    ? mapEspnBroadcasts({ broadcasts: data.broadcasts })
+    : [];
+  if (summaryBroadcasts.length > 0) {
+    const mergedMap = new Map<string, TvBroadcast>();
+    for (const b of [...match.broadcasts, ...summaryBroadcasts]) {
+      const k = (b.id || b.slug || b.name).toLowerCase();
+      if (!mergedMap.has(k)) mergedMap.set(k, b);
+    }
+    match.broadcasts = Array.from(mergedMap.values());
   }
 
   // Venue y oficiales en gameInfo

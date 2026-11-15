@@ -179,16 +179,25 @@ function mergeLeagueRefs(pm: UnifiedLeagueRef, espn: UnifiedLeagueRef): UnifiedL
 }
 
 function mergeBroadcasts(a: TvBroadcast[], b: TvBroadcast[]): TvBroadcast[] {
-  const byName = new Map<string, TvBroadcast>();
+  const byKey = new Map<string, TvBroadcast>();
   for (const item of [...a, ...b]) {
-    const key = item.name.trim().toLowerCase();
+    const key = (item.id || item.slug || item.name).trim().toLowerCase();
     if (!key) continue;
-    const prev = byName.get(key);
-    if (!prev || (!prev.logo && item.logo)) {
-      byName.set(key, item);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, item);
+      continue;
     }
+    byKey.set(key, {
+      ...prev,
+      ...item,
+      id: prev.id ?? item.id,
+      promiedosId: prev.promiedosId ?? item.promiedosId,
+      logo: prev.logo ?? item.logo,
+      mapped: prev.mapped || item.mapped,
+    });
   }
-  return Array.from(byName.values());
+  return Array.from(byKey.values());
 }
 
 function mergeGoals(a: MatchGoal[], b: MatchGoal[]): MatchGoal[] {

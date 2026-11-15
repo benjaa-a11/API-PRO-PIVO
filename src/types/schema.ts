@@ -154,10 +154,14 @@ export interface MatchEvent {
 }
 
 export interface TvBroadcast {
-  id?: string;
+  id: string | null;
   name: string;
+  slug?: string;
+  promiedosId?: string;
   logo?: string;
   country?: string;
+  category?: 'tv' | 'streaming' | 'ppv';
+  mapped: boolean;
 }
 
 export interface MatchOddsOption {
