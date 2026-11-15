@@ -288,7 +288,8 @@ async function runLiveE2E(): Promise<void> {
 
   const dash = await callApi('/');
   assert.equal(dash.status, 200);
-  assert.ok(String(dash.body).includes('API PRO PIVO'));
+  assert.ok(String(dash.body).includes('Pivote Fútbol'));
+  assert.ok(String(dash.body).includes('id="sidebar"'));
   console.log('GET / -> 200 OK (Dashboard HTML)');
 
   const openapi = await callApi('/openapi.json');

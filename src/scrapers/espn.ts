@@ -215,12 +215,26 @@ function mapEspnStatus(rawStatus: any, hasShootout: boolean): MatchStatus {
 
   const displayStr = String(rawStatus?.displayClock ?? detail ?? '');
   const min = parseMinuteParts(displayStr);
+  const STATUS_ES: Record<string, string> = {
+    'First Half': 'Primer Tiempo',
+    'Second Half': 'Segundo Tiempo',
+    Halftime: 'Entretiempo',
+    'Full Time': 'Finalizado',
+    Scheduled: 'Programado',
+    Postponed: 'Postergado',
+    Suspended: 'Suspendido',
+    Canceled: 'Cancelado',
+    Cancelled: 'Cancelado',
+    'Extra Time': 'Prórroga',
+    Penalties: 'Penales',
+  };
+  const labelEs = STATUS_ES[desc] ?? STATUS_ES[detail] ?? (desc || detail || state);
 
   return {
     state,
     code: String(typeObj?.id ?? typeName ?? rawState),
-    label: desc || detail || state,
-    shortLabel: detail || state,
+    label: labelEs,
+    shortLabel: STATUS_ES[detail] ?? (detail || state),
     minute:
       state === 'HT'
         ? 45
@@ -386,9 +400,12 @@ function mapEspnEventToUnifiedMatch(
   const away = mapEspnTeamRef(awayComp);
 
   const uidLeagueId = extractUidLeagueId(event?.uid);
+  const fallbackAltLeague = comp?.altGameNote
+    ? String(comp.altGameNote).split(',')[0].trim()
+    : undefined;
   const league = mapEspnLeagueRef({
     id: leagueHint?.id ?? uidLeagueId,
-    name: leagueHint?.name ?? event?.season?.slug,
+    name: leagueHint?.name ?? fallbackAltLeague,
     shortName: leagueHint?.shortName,
     abbrev: leagueHint?.abbrev,
     slug: leagueHint?.slug,
