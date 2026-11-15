@@ -780,7 +780,12 @@ export const TV_CHANNEL_MAPPINGS: TvChannelMapping[] = [
   { id: null, name: 'YouTube', slug: 'youtube', category: 'streaming', country: 'INT', aliases: ['youtube', 'youtube live'] },
 ];
 
-function normalizeTvKey(input: string): string {
+export interface EffectiveTvChannel extends TvChannelMapping {
+  isCustom: boolean;
+  isOverridden: boolean;
+}
+
+export function normalizeTvKey(input: string): string {
   return input
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -789,19 +794,73 @@ function normalizeTvKey(input: string): string {
     .trim();
 }
 
-function slugifyTvName(input: string): string {
+export function slugifyTvName(input: string): string {
   return normalizeTvKey(input)
     .replace(/\+/g, '-plus')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
 
-const TV_ALIAS_INDEX: Map<string, TvChannelMapping> = new Map();
-for (const entry of TV_CHANNEL_MAPPINGS) {
-  TV_ALIAS_INDEX.set(normalizeTvKey(entry.name), entry);
-  for (const alias of entry.aliases) {
-    TV_ALIAS_INDEX.set(normalizeTvKey(alias), entry);
+const BASE_TV_BY_SLUG: Map<string, TvChannelMapping> = new Map(
+  TV_CHANNEL_MAPPINGS.map((entry) => [entry.slug, entry]),
+);
+
+let activeTvOverrides: Record<string, TvChannelMapping> = {};
+let activeTvAliasIndex: Map<string, TvChannelMapping> = new Map();
+
+function rebuildTvIndex(): void {
+  const next = new Map<string, TvChannelMapping>();
+  const register = (entry: TvChannelMapping) => {
+    next.set(normalizeTvKey(entry.name), entry);
+    for (const alias of entry.aliases) {
+      const k = normalizeTvKey(alias);
+      if (k) next.set(k, entry);
+    }
+  };
+
+  for (const base of TV_CHANNEL_MAPPINGS) {
+    const effective = activeTvOverrides[base.slug] ?? base;
+    register(effective);
   }
+  for (const [slug, custom] of Object.entries(activeTvOverrides)) {
+    if (!BASE_TV_BY_SLUG.has(slug)) {
+      register(custom);
+    }
+  }
+  activeTvAliasIndex = next;
+}
+
+rebuildTvIndex();
+
+export function setRuntimeTvOverrides(overrides: Record<string, TvChannelMapping>): void {
+  activeTvOverrides = { ...overrides };
+  rebuildTvIndex();
+}
+
+export function getEffectiveTvChannels(): EffectiveTvChannel[] {
+  const list: EffectiveTvChannel[] = [];
+  for (const base of TV_CHANNEL_MAPPINGS) {
+    const ov = activeTvOverrides[base.slug];
+    list.push({
+      ...(ov ?? base),
+      isCustom: false,
+      isOverridden: Boolean(ov),
+    });
+  }
+  for (const [slug, custom] of Object.entries(activeTvOverrides)) {
+    if (!BASE_TV_BY_SLUG.has(slug)) {
+      list.push({
+        ...custom,
+        isCustom: true,
+        isOverridden: false,
+      });
+    }
+  }
+  return list;
+}
+
+export function isBaseTvChannel(slug: string): boolean {
+  return BASE_TV_BY_SLUG.has(slug);
 }
 
 export function resolveTvChannel(
@@ -811,7 +870,7 @@ export function resolveTvChannel(
 ): TvBroadcast {
   const cleaned = rawName.replace(/\s+/g, ' ').trim();
   const key = normalizeTvKey(cleaned);
-  const hit = TV_ALIAS_INDEX.get(key);
+  const hit = activeTvAliasIndex.get(key);
   if (hit) {
     return {
       id: hit.id,
@@ -833,4 +892,8 @@ export function resolveTvChannel(
     country: 'AR',
     mapped: false,
   };
+}
+
+export function reapplyTvChannelMapping(b: TvBroadcast): TvBroadcast {
+  return resolveTvChannel(b.name, b.promiedosId, b.logo);
 }

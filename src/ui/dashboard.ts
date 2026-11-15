@@ -140,6 +140,22 @@ export function buildOpenApiSpec(baseUrl: string) {
           parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }],
           responses: { '200': { description: 'Lista de canales TV con id canónico o null' } },
         },
+        post: {
+          summary: 'Crear o mapear un nuevo canal de TV con el ID de tu app',
+          responses: { '201': { description: 'Canal guardado' }, '401': { description: 'ADMIN_TOKEN requerido' } },
+        },
+      },
+      '/api/v1/channels/{slug}': {
+        put: {
+          summary: 'Editar el ID canónico, categoría o alias de un canal existente',
+          parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'Canal actualizado' }, '401': { description: 'ADMIN_TOKEN requerido' } },
+        },
+        delete: {
+          summary: 'Restaurar un canal editado a su valor por defecto o eliminar uno personalizado',
+          parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'Override eliminado' } },
+        },
       },
     },
   };
@@ -201,6 +217,11 @@ img{display:block}
 .ev-ico.sub{color:var(--mut)}
 .tv-id{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:6px;background:rgba(200,255,71,.14);color:var(--lime);border:1px solid rgba(200,255,71,.28)}
 .tv-id.null{background:rgba(255,255,255,.05);color:var(--mut);border-color:var(--line)}
+.ch-in,.ch-sel{padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);font-size:12.5px}
+.ch-in:focus,.ch-sel:focus{border-color:var(--lime);outline:none}
+.ch-in.mono{font-family:var(--mono)}
+.ch-toast{padding:10px 14px;border-radius:14px;border:1px solid rgba(200,255,71,.35);background:rgba(200,255,71,.1);color:var(--lime);font-size:13px;margin-bottom:12px}
+.ch-toast.err{border-color:rgba(255,77,94,.4);background:rgba(255,77,94,.1);color:var(--red)}
 .nav-badge{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(255,77,94,.18);color:var(--red);font-weight:700}
 .nav-date-wrap{padding:6px 10px 2px}
 .nav-date{width:100%;padding:8px 11px;border-radius:11px;border:1px solid var(--line);background:var(--bg);font-size:13px;color:var(--tx);color-scheme:dark}
@@ -624,7 +645,7 @@ async function navigate(target, manual = false) {
     await loadMappings();
   } else if (section === 'channels') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Canales TV</strong>';
-    await loadChannels();
+    await loadChannels(param || '');
   } else if (section === 'health') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Salud &amp; Caché</strong>';
     await loadHealth();
@@ -816,7 +837,7 @@ function renderSheet() {
 
     const ml = m.odds?.moneyline;
     const odds = ml ? '<h4>Cuotas 1X2</h4><div class="odds"><div><b>' + esc(ml.home ?? '-') + '</b><span>' + esc(h.shortName) + '</span></div><div><b>' + esc(ml.draw ?? '-') + '</b><span>Empate</span></div><div><b>' + esc(ml.away ?? '-') + '</b><span>' + esc(a.shortName) + '</span></div></div>' : '';
-    const tv = (m.broadcasts || []).length ? '<h4>Dónde verlo</h4><div class="tv">' + m.broadcasts.map((b) => '<span>' + img(b.logo) + esc(b.name) + '<code class="tv-id ' + (b.id ? '' : 'null') + '">' + esc(b.id ?? 'null') + '</code></span>').join('') + '</div>' : '';
+    const tv = (m.broadcasts || []).length ? '<h4>Dónde verlo</h4><div class="tv">' + m.broadcasts.map((b) => '<span>' + img(b.logo) + esc(b.name) + '<code class="tv-id ' + (b.id ? '' : 'null') + '">' + esc(b.id ?? 'null') + '</code><button type="button" class="btn-ghost" style="padding:2px 7px;font-size:11px" data-nav="channels:' + esc(b.name) + '" data-close-go title="Editar ID de este canal">Editar</button></span>').join('') + '</div>' : '';
     const infoList = det?.gameInfo?.length ? det.gameInfo : (m.venue?.name ? [{ label: 'Estadio', value: [m.venue.name, m.venue.city, m.venue.country].filter(Boolean).join(', ') }] : []);
     const infoHtml = infoList.length ? '<h4>Ficha del partido</h4><div class="kv">' + infoList.map((i) => '<div><small>' + esc(i.label) + '</small>' + esc(i.value) + '</div>').join('') + '</div>' : '';
 
@@ -1098,13 +1119,127 @@ async function loadMappings() {
     '</tbody></table></div></div>';
 }
 
-async function loadChannels() {
+async function loadChannels(initialQuery = '') {
   const j = await apiGet('/api/v1/channels');
+  S.channelsData = j;
+  if (typeof S.chQuery !== 'string' || initialQuery) S.chQuery = initialQuery;
+  renderChannelsView();
+}
+
+function channelHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  const tok = sessionStorage.getItem('pivo_admin_token') || '';
+  if (tok) h['X-Admin-Token'] = tok;
+  return h;
+}
+
+function renderChannelsView(toastMsg = '', isErr = false) {
+  const j = S.channelsData;
+  if (!j) return;
+  const q = (S.chQuery || '').trim().toLowerCase();
+  const rows = (j.data || []).filter((ch) =>
+    !q ||
+    ch.name.toLowerCase().includes(q) ||
+    (ch.id && ch.id.toLowerCase().includes(q)) ||
+    ch.slug.toLowerCase().includes(q) ||
+    (ch.aliases || []).some((a) => a.toLowerCase().includes(q))
+  );
+
+  const savedTok = sessionStorage.getItem('pivo_admin_token') || '';
   $('#viewRoot').innerHTML =
-    '<section class="hero"><div><h2><b>' + j.count + '</b> Canales TV</h2><p>' + j.mappedIdsCount + ' con ID canónico directo para tu app y ' + (j.count - j.mappedIdsCount) + ' plataformas con id: null</p></div></section>' +
-    '<div class="panel"><div class="table-wrap"><table class="tbl"><thead><tr><th>Canal</th><th>ID Canónico</th><th>Categoría</th><th>País</th><th>Alias reconocidos</th></tr></thead><tbody>' +
-    (j.data || []).map((ch) => '<tr><td><strong>' + esc(ch.name) + '</strong></td><td><code class="tv-id ' + (ch.id ? '' : 'null') + '">' + esc(ch.id ?? 'null') + '</code></td><td class="muted">' + esc(ch.category) + '</td><td class="num">' + esc(ch.country) + '</td><td class="muted" style="font-size:12px">' + esc((ch.aliases || []).join(', ')) + '</td></tr>').join('') +
+    '<section class="hero"><div><h2><b>' + j.count + '</b> Canales TV</h2><p>' + j.mappedIdsCount + ' con ID para tu app · ' + (j.count - j.mappedIdsCount) + ' con id: null · Persistencia: <strong>' + (j.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong> · Seguridad: <strong>' + (j.authMode === 'token-protected' ? 'ADMIN_TOKEN activo' : 'Modo dev abierto') + '</strong></p></div>' +
+    '<div class="stats"><div class="stat"><b>' + (j.overriddenCount || 0) + '</b><span>Editados</span></div><button class="btn-ghost" id="chCopyBtn" type="button">Copiar JSON</button></div></section>' +
+    (toastMsg ? '<div class="ch-toast ' + (isErr ? 'err' : '') + '">' + esc(toastMsg) + '</div>' : '') +
+    '<div class="panel"><div class="panel-head"><h3>Agregar o mapear canal</h3>' +
+      (j.authMode === 'token-protected' ? '<input class="ch-in mono" id="chAdminTok" type="password" placeholder="ADMIN_TOKEN" value="' + esc(savedTok) + '" style="min-width:200px">' : '') +
+    '</div><div class="panel-body"><form id="chAddForm" class="ep-row" style="margin-bottom:0">' +
+      '<input class="ch-in" id="chNewName" placeholder="Nombre del canal (ej: TyC Sports Play)" value="' + esc(rows.length === 0 && S.chQuery ? S.chQuery : '') + '" style="flex:1;min-width:190px" required>' +
+      '<input class="ch-in mono" id="chNewId" placeholder="ID en tu app (vacío = null)" style="width:180px">' +
+      '<select class="ch-sel" id="chNewCat"><option value="tv">tv</option><option value="streaming">streaming</option><option value="ppv">ppv</option></select>' +
+      '<input class="ch-in" id="chNewAliases" placeholder="Alias (separados por coma)" style="flex:1;min-width:190px">' +
+      '<button class="btn-lime" type="submit">Guardar canal</button>' +
+    '</form></div></div>' +
+    '<div class="panel"><div class="panel-head"><input class="ch-in" id="chSearch" type="search" value="' + esc(S.chQuery || '') + '" placeholder="Filtrar canales, alias o ID de tu app..." style="flex:1;min-width:240px"></div>' +
+    '<div class="table-wrap"><table class="tbl"><thead><tr><th>Canal</th><th>ID de tu App</th><th>Categoría</th><th>Alias</th><th>Acciones</th></tr></thead><tbody>' +
+    rows.map((ch) =>
+      '<tr data-slug="' + esc(ch.slug) + '">' +
+        '<td><strong>' + esc(ch.name) + '</strong><br><small class="muted" style="font-family:var(--mono)">' + esc(ch.slug) + (ch.isOverridden ? ' · editado' : ch.isCustom ? ' · custom' : '') + '</small></td>' +
+        '<td><input class="ch-in mono ch-id-in" value="' + esc(ch.id ?? '') + '" placeholder="null" style="width:155px"></td>' +
+        '<td><select class="ch-sel ch-cat-in"><option value="tv"' + (ch.category === 'tv' ? ' selected' : '') + '>tv</option><option value="streaming"' + (ch.category === 'streaming' ? ' selected' : '') + '>streaming</option><option value="ppv"' + (ch.category === 'ppv' ? ' selected' : '') + '>ppv</option></select></td>' +
+        '<td><input class="ch-in ch-al-in" value="' + esc((ch.aliases || []).join(', ')) + '" style="width:100%;min-width:190px"></td>' +
+        '<td style="white-space:nowrap"><button class="btn-lime ch-save" type="button" style="padding:6px 11px;font-size:12px">Guardar</button>' +
+        ((ch.isOverridden || ch.isCustom) ? ' <button class="btn-ghost ch-del" type="button" style="padding:6px 10px;font-size:12px">' + (ch.isCustom ? 'Eliminar' : 'Restaurar') + '</button>' : '') +
+        '</td>' +
+      '</tr>'
+    ).join('') +
     '</tbody></table></div></div>';
+
+  const tokEl = $('#chAdminTok');
+  if (tokEl) tokEl.addEventListener('input', (e) => sessionStorage.setItem('pivo_admin_token', e.target.value));
+
+  $('#chSearch').addEventListener('input', (e) => {
+    S.chQuery = e.target.value;
+    renderChannelsView();
+    const el = $('#chSearch');
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  });
+
+  $('#chCopyBtn').addEventListener('click', async () => {
+    const out = (S.channelsData?.data || []).map((c) => ({ name: c.name, id: c.id }));
+    await navigator.clipboard?.writeText(JSON.stringify(out, null, 2));
+    renderChannelsView('JSON de mapeo de canales copiado al portapapeles.');
+  });
+
+  $('#chAddForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('#chNewName').value.trim();
+    const rawId = $('#chNewId').value.trim();
+    const category = $('#chNewCat').value;
+    const aliases = $('#chNewAliases').value.split(',').map((s) => s.trim()).filter(Boolean);
+    const r = await fetch('/api/v1/channels', {
+      method: 'POST',
+      headers: channelHeaders(),
+      body: JSON.stringify({ name, id: rawId || null, category, aliases }),
+    });
+    const res = await r.json();
+    if (!r.ok || !res.ok) return renderChannelsView(res.error || 'Error guardando canal', true);
+    S.channelsData = await apiGet('/api/v1/channels');
+    renderChannelsView('Canal "' + res.data.name + '" guardado (' + res.persistedIn.toUpperCase() + ').');
+  });
+
+  document.querySelectorAll('.ch-save').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const tr = btn.closest('tr');
+      const slug = tr.dataset.slug;
+      const rawId = tr.querySelector('.ch-id-in').value.trim();
+      const category = tr.querySelector('.ch-cat-in').value;
+      const aliases = tr.querySelector('.ch-al-in').value.split(',').map((s) => s.trim()).filter(Boolean);
+      const r = await fetch('/api/v1/channels/' + encodeURIComponent(slug), {
+        method: 'PUT',
+        headers: channelHeaders(),
+        body: JSON.stringify({ id: rawId || null, category, aliases }),
+      });
+      const res = await r.json();
+      if (!r.ok || !res.ok) return renderChannelsView(res.error || 'Error actualizando canal', true);
+      S.channelsData = await apiGet('/api/v1/channels');
+      renderChannelsView('Mapeo de "' + res.data.name + '" actualizado a id: ' + (res.data.id ?? 'null') + ' (' + res.persistedIn.toUpperCase() + ').');
+    });
+  });
+
+  document.querySelectorAll('.ch-del').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const slug = btn.closest('tr').dataset.slug;
+      const r = await fetch('/api/v1/channels/' + encodeURIComponent(slug), {
+        method: 'DELETE',
+        headers: channelHeaders(),
+      });
+      const res = await r.json();
+      if (!r.ok || !res.ok) return renderChannelsView(res.error || 'Error restaurando canal', true);
+      S.channelsData = await apiGet('/api/v1/channels');
+      renderChannelsView('Canal "' + slug + '" restaurado/eliminado.');
+    });
+  });
 }
 
 async function loadHealth() {

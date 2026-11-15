@@ -34,10 +34,14 @@ function makeMockExecCtx() {
   return { ctx, promises };
 }
 
-async function callApi(path: string): Promise<{ status: number; headers: Headers; body: any }> {
+async function callApi(
+  path: string,
+  init?: RequestInit,
+  envOverride?: Partial<EnvBindings>,
+): Promise<{ status: number; headers: Headers; body: any }> {
   const { ctx, promises } = makeMockExecCtx();
-  const req = new Request(`https://api-pro-pivo.test${path}`);
-  const res = await worker.fetch(req, TEST_ENV, ctx);
+  const req = new Request(`https://api-pro-pivo.test${path}`, init);
+  const res = await worker.fetch(req, { ...TEST_ENV, ...envOverride }, ctx);
   await Promise.allSettled(promises);
   const ct = res.headers.get('content-type') ?? '';
   const body = ct.includes('application/json') ? await res.json() : await res.text();
@@ -344,6 +348,50 @@ async function runLiveE2E(): Promise<void> {
   assert.equal(tycEntry?.id, 'tycsports');
   assert.equal(tycPlayEntry?.id, null);
   console.log(`GET /api/v1/channels -> 200 OK (${channels.body.count} channels, ${channels.body.mappedIdsCount} with id)`);
+
+  // Edición + seguridad ADMIN_TOKEN + restauración de canales TV
+  const unauthPut = await callApi(
+    '/api/v1/channels/tyc-sports-play',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'mi-app-tyc-play' }),
+    },
+    { ADMIN_TOKEN: 'secreto-test-123' },
+  );
+  assert.equal(unauthPut.status, 401);
+
+  const authPut = await callApi(
+    '/api/v1/channels/tyc-sports-play',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': 'secreto-test-123' },
+      body: JSON.stringify({ id: 'mi-app-tyc-play' }),
+    },
+    { ADMIN_TOKEN: 'secreto-test-123' },
+  );
+  assert.equal(authPut.status, 200);
+  assert.equal(authPut.body.data.id, 'mi-app-tyc-play');
+  assert.equal(resolveTvChannel('TyC Sports Play').id, 'mi-app-tyc-play');
+
+  const delOv = await callApi(
+    '/api/v1/channels/tyc-sports-play',
+    { method: 'DELETE', headers: { 'X-Admin-Token': 'secreto-test-123' } },
+    { ADMIN_TOKEN: 'secreto-test-123' },
+  );
+  assert.equal(delOv.status, 200);
+  assert.equal(delOv.body.restoredToDefault, true);
+  assert.equal(resolveTvChannel('TyC Sports Play').id, null);
+
+  const postCustom = await callApi('/api/v1/channels', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Canal Deportivo Test', id: 'canal-test-app', category: 'tv' }),
+  });
+  assert.equal(postCustom.status, 201);
+  assert.equal(resolveTvChannel('Canal Deportivo Test').id, 'canal-test-app');
+  await callApi('/api/v1/channels/canal-deportivo-test', { method: 'DELETE' });
+  console.log('PUT/POST/DELETE /api/v1/channels + ADMIN_TOKEN -> OK');
 
   const todayRes = await callApi('/api/v1/matches?date=today');
   assert.equal(todayRes.status, 200);

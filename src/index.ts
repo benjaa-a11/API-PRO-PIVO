@@ -1,7 +1,13 @@
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
-import { LEAGUE_MAPPINGS, TV_CHANNEL_MAPPINGS } from './config/mappings.ts';
+import { LEAGUE_MAPPINGS, getEffectiveTvChannels } from './config/mappings.ts';
+import {
+  applyChannelOverridesToPayload,
+  deleteChannelOverride,
+  ensureChannelOverridesLoaded,
+  upsertChannelOverride,
+} from './services/channel-store.ts';
 import { footballService, type ServiceResult } from './services/fusion.ts';
 import type { ApiResponse, EnvBindings } from './types/schema.ts';
 import { buildOpenApiSpec, renderDashboardHtml } from './ui/dashboard.ts';
@@ -21,16 +27,54 @@ const matchesQuerySchema = z.object({
   refresh: z.enum(['true', 'false', '1', '0']).optional(),
 });
 
+const channelUpsertSchema = z.object({
+  id: z
+    .union([
+      z.string().trim().regex(/^[a-zA-Z0-9._-]{1,64}$/, 'ID inválido (solo letras, números, ., _, -)'),
+      z.literal(''),
+      z.null(),
+    ])
+    .optional(),
+  name: z.string().trim().min(1, 'El nombre es requerido').max(80).optional(),
+  slug: z.string().trim().min(1).max(80).optional(),
+  category: z.enum(['tv', 'streaming', 'ppv']).optional(),
+  country: z.string().trim().min(2).max(5).optional(),
+  aliases: z.array(z.string().trim().min(1).max(80)).max(25).optional(),
+});
+
 app.use(
   '*',
   cors({
     origin: '*',
-    allowMethods: ['GET', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token', 'X-Requested-With'],
     exposeHeaders: ['X-API-Version', 'X-Cache', 'X-Sources', 'X-Response-Time'],
-    maxAge: 86400,
   }),
 );
+
+app.use('/api/v1/*', async (c, next) => {
+  await ensureChannelOverridesLoaded(c.env);
+  await next();
+});
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+function checkAdminAuth(c: Context<AppEnv>): boolean {
+  const secret = c.env?.ADMIN_TOKEN?.trim();
+  if (!secret) return true;
+  const authHeader = c.req.header('Authorization') ?? '';
+  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const xToken = (c.req.header('X-Admin-Token') ?? '').trim();
+  const provided = bearer || xToken;
+  return Boolean(provided) && timingSafeEqual(provided, secret);
+}
 
 function getWaitUntil(
   c: Context<AppEnv>,
@@ -66,7 +110,7 @@ function respondOk<T>(
 
   const body: ApiResponse<T> = {
     ok: true,
-    data: result.data,
+    data: applyChannelOverridesToPayload(result.data),
     meta: {
       version,
       generatedAt: new Date().toISOString(),
@@ -121,20 +165,25 @@ app.get('/api/v1/mappings', (c) => {
 
 app.get('/api/v1/channels', (c) => {
   const q = (c.req.query('q') ?? '').trim().toLowerCase();
+  const all = getEffectiveTvChannels();
   const data = q
-    ? TV_CHANNEL_MAPPINGS.filter(
+    ? all.filter(
         (ch) =>
           ch.name.toLowerCase().includes(q) ||
           (ch.id && ch.id.toLowerCase().includes(q)) ||
           ch.slug.toLowerCase().includes(q) ||
           ch.aliases.some((a) => a.includes(q)),
       )
-    : TV_CHANNEL_MAPPINGS;
+    : all;
   const mappedIdsCount = data.filter((ch) => ch.id !== null).length;
+  const overriddenCount = all.filter((ch) => ch.isOverridden || ch.isCustom).length;
   return c.json({
     ok: true,
     count: data.length,
     mappedIdsCount,
+    overriddenCount,
+    persistence: c.env?.FOOTBALL_KV ? 'kv' : 'memory',
+    authMode: c.env?.ADMIN_TOKEN ? 'token-protected' : 'open-dev',
     data: data.map((ch) => ({
       id: ch.id,
       name: ch.name,
@@ -142,8 +191,90 @@ app.get('/api/v1/channels', (c) => {
       category: ch.category,
       country: ch.country,
       aliases: ch.aliases,
+      isCustom: ch.isCustom,
+      isOverridden: ch.isOverridden,
     })),
   });
+});
+
+app.post('/api/v1/channels', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const rawBody = await c.req.json().catch(() => null);
+  const parsed = channelUpsertSchema.safeParse(rawBody);
+  if (!parsed.success || !parsed.data.name) {
+    return c.json(
+      {
+        ok: false,
+        error: 'Payload inválido: se requiere name y opcionalmente id (string o null)',
+        issues: parsed.success ? [] : parsed.error.issues,
+      },
+      400,
+    );
+  }
+  const body = parsed.data;
+  const res = await upsertChannelOverride(
+    {
+      slug: body.slug,
+      name: body.name!,
+      id: body.id === undefined ? null : body.id === '' ? null : body.id,
+      category: body.category,
+      country: body.country,
+      aliases: body.aliases,
+    },
+    c.env,
+  );
+  return c.json({ ok: true, persistedIn: res.persistedIn, data: res.channel }, 201);
+});
+
+app.put('/api/v1/channels/:slug', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const slug = c.req.param('slug');
+  const rawBody = await c.req.json().catch(() => null);
+  const parsed = channelUpsertSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.json({ ok: false, error: 'Payload inválido', issues: parsed.error.issues }, 400);
+  }
+  const existing = getEffectiveTvChannels().find((ch) => ch.slug === slug);
+  const body = parsed.data;
+  const name = body.name ?? existing?.name;
+  if (!name) {
+    return c.json({ ok: false, error: `Canal '${slug}' no encontrado; enviá 'name' para crearlo` }, 404);
+  }
+  const nextId =
+    body.id === undefined
+      ? (existing?.id ?? null)
+      : body.id === ''
+        ? null
+        : body.id;
+
+  const res = await upsertChannelOverride(
+    {
+      slug,
+      name,
+      id: nextId,
+      category: body.category ?? existing?.category,
+      country: body.country ?? existing?.country,
+      aliases: body.aliases ?? existing?.aliases,
+    },
+    c.env,
+  );
+  return c.json({ ok: true, persistedIn: res.persistedIn, data: res.channel });
+});
+
+app.delete('/api/v1/channels/:slug', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const slug = c.req.param('slug');
+  const res = await deleteChannelOverride(slug, c.env);
+  if (!res.removed) {
+    return c.json({ ok: false, error: `No hay override guardado para '${slug}'` }, 404);
+  }
+  return c.json({ ok: true, ...res });
 });
 
 app.get('/api/v1/live', async (c) => {

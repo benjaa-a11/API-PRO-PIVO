@@ -17,6 +17,7 @@ export interface EnvBindings {
   CACHE_LEAGUE_TTL?: string;
   CACHE_TEAM_TTL?: string;
   CACHE_CATALOG_TTL?: string;
+  ADMIN_TOKEN?: string;
   FOOTBALL_KV?: KVNamespace;
 }
 
