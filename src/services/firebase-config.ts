@@ -9,7 +9,7 @@ export const DEFAULT_FIREBASE_CONFIG = {
   appId: '1:542563961448:web:c60f6861e313e8dfc549dd',
 } as const;
 
-export type FirestoreConfigDocId = 'tv_channels' | 'excluded_leagues';
+export type FirestoreConfigDocId = 'tv_channels' | 'excluded_leagues' | 'custom_logos';
 
 interface FirestoreValue {
   nullValue?: null;

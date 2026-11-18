@@ -86,6 +86,7 @@ export interface UnifiedTeamRef {
     promiedosLarge?: string;
     espn?: string;
     espnDark?: string;
+    custom?: string;
   };
   countryId?: string;
   countryFlag?: string;
@@ -215,6 +216,7 @@ export interface UnifiedLeagueRef {
     promiedos?: string;
     espn?: string;
     espnDark?: string;
+    custom?: string;
   };
   promiedosUrl?: string;
   espnUrl?: string;

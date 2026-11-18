@@ -174,6 +174,23 @@ export function buildOpenApiSpec(baseUrl: string) {
           responses: { '200': { description: 'Liga restaurada' } },
         },
       },
+      '/api/v1/custom-logos': {
+        get: {
+          summary: 'Lista de logos personalizados (PNG/SVG) guardados en Firestore para equipos y ligas',
+          responses: { '200': { description: 'Logos personalizados activos' } },
+        },
+        post: {
+          summary: 'Guardar o actualizar un logo personalizado (PNG/SVG) por URL para un equipo o liga',
+          responses: { '201': { description: 'Logo guardado' }, '401': { description: 'ADMIN_TOKEN requerido' } },
+        },
+      },
+      '/api/v1/custom-logos/{key}': {
+        delete: {
+          summary: 'Eliminar un logo personalizado y restaurar el logo original de la API',
+          parameters: [{ name: 'key', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'Logo eliminado' } },
+        },
+      },
     },
   };
 }
@@ -531,6 +548,7 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
         <div class="nav-items">
           <button class="nav-item" data-nav="explorer"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg><span>Explorador JSON</span></span></button>
           <button class="nav-item" data-nav="channels"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/></svg><span>Canales TV (Mapeo)</span></span></button>
+          <button class="nav-item" data-nav="custom-logos"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><span>Logos Personalizados</span></span><span class="nav-badge" id="sideLogosBadge" style="display:none;background:rgba(200,255,71,.16);color:var(--lime)">0</span></button>
           <button class="nav-item" data-nav="excluded-leagues"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m4.93 4.93 14.14 14.14"/></svg><span>Ligas Excluidas</span></span><span class="nav-badge" id="sideExclBadge" style="display:none">0</span></button>
           <button class="nav-item" data-nav="mappings"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><span>Mapeos de Ligas</span></span></button>
           <button class="nav-item" data-nav="health"><span class="nav-left"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Salud &amp; Caché</span></span></button>
@@ -700,6 +718,9 @@ async function navigate(target, manual = false) {
   } else if (section === 'channels') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Canales TV</strong>';
     await loadChannels(param || '');
+  } else if (section === 'custom-logos') {
+    $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Logos Personalizados</strong>';
+    await loadCustomLogos();
   } else if (section === 'excluded-leagues') {
     $('#crumb').innerHTML = 'API &amp; Sistema · <strong>Ligas Excluidas</strong>';
     await loadExcludedLeagues();
@@ -1426,6 +1447,116 @@ function renderExcludedLeaguesView(toastMsg = '', isErr = false) {
   });
 }
 
+async function loadCustomLogos() {
+  const [logosRes, mapsRes] = await Promise.all([
+    apiGet('/api/v1/custom-logos'),
+    S.mappingsData ? Promise.resolve({ data: S.mappingsData }) : apiGet('/api/v1/mappings'),
+  ]);
+  S.customLogosData = logosRes;
+  S.mappingsData = mapsRes.data;
+  updateLogosBadge(logosRes.count || 0);
+  renderCustomLogosView();
+}
+
+function updateLogosBadge(n) {
+  const b = $('#sideLogosBadge');
+  if (!b) return;
+  b.textContent = n;
+  b.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+function renderCustomLogosView(toastMsg = '', isErr = false) {
+  const d = S.customLogosData || { count: 0, persistence: 'firestore', authMode: 'open-dev', data: [] };
+  const savedTok = sessionStorage.getItem('pivo_admin_token') || '';
+  const teamOpts = new Map();
+  for (const g of (S.leagues || [])) {
+    for (const m of (g.matches || [])) {
+      if (m.home?.id) teamOpts.set(m.home.id, m.home.name + ' (' + m.home.id + ')');
+      if (m.away?.id) teamOpts.set(m.away.id, m.away.name + ' (' + m.away.id + ')');
+    }
+  }
+  const leagueOpts = (S.mappingsData || []).map((l) => '<option value="' + esc(l.canonicalSlug) + '">' + esc(l.name) + '</option>').join('');
+  const teamOptsHtml = Array.from(teamOpts.entries()).map(([id, label]) => '<option value="' + esc(id) + '">' + esc(label) + '</option>').join('');
+
+  $('#viewRoot').innerHTML =
+    '<section class="hero"><div><h2><b>' + d.count + '</b> Logos Custom</h2><p>Asigná logos PNG o SVG por URL a cualquier equipo o liga · Persistencia: <strong>' + (d.persistence === 'firestore' ? 'Firebase Firestore' : d.persistence === 'kv' ? 'Cloudflare KV' : 'Memoria local') + '</strong></p></div></section>' +
+    (toastMsg ? '<div class="ch-toast ' + (isErr ? 'err' : '') + '">' + esc(toastMsg) + '</div>' : '') +
+    '<div class="panel"><div class="panel-head"><h3>Agregar o reemplazar logo (PNG / SVG)</h3>' +
+      (d.authMode === 'token-protected' ? '<input class="ch-in mono" id="clAdminTok" type="password" placeholder="ADMIN_TOKEN" value="' + esc(savedTok) + '" style="min-width:200px">' : '') +
+    '</div><div class="panel-body"><form id="clForm" class="ep-row" style="margin-bottom:0;align-items:center">' +
+      '<select class="ch-sel" id="clType"><option value="team">Equipo</option><option value="league">Liga</option></select>' +
+      '<input class="ch-in mono" id="clId" list="clSuggestions" placeholder="ID, slug o nombre (ej: pm-igg, Boca Juniors, liga-profesional)" style="flex:1;min-width:210px" required>' +
+      '<datalist id="clSuggestions">' + teamOptsHtml + leagueOpts + '</datalist>' +
+      '<input class="ch-in" id="clName" placeholder="Nombre visible (opcional)" style="min-width:160px">' +
+      '<input class="ch-in mono" id="clUrl" type="url" placeholder="https://ejemplo.com/logo.svg o .png" style="flex:1.4;min-width:240px" required>' +
+      '<img id="clPreview" src="" alt="" style="width:36px;height:36px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:3px;display:none">' +
+      '<button class="btn-lime" type="submit">Guardar logo</button>' +
+    '</form></div></div>' +
+    '<div class="panel"><div class="panel-head"><h3>Logos guardados</h3></div>' +
+    ((d.data || []).length
+      ? '<div class="table-wrap"><table class="tbl"><thead><tr><th>Vista previa</th><th>Tipo</th><th>Identificador</th><th>URL (PNG / SVG)</th><th>Acciones</th></tr></thead><tbody>' +
+        d.data.map((item) =>
+          '<tr>' +
+            '<td><img src="' + esc(item.logoUrl) + '" alt="" style="width:36px;height:36px;object-fit:contain;background:rgba(255,255,255,.04);border-radius:8px;padding:3px"></td>' +
+            '<td><span class="pill" style="padding:3px 9px;font-size:11.5px">' + esc(item.targetType === 'team' ? 'Equipo' : 'Liga') + '</span></td>' +
+            '<td><strong>' + esc(item.name || item.identifier) + '</strong><br><small class="muted" style="font-family:var(--mono)">' + esc(item.key) + '</small></td>' +
+            '<td style="font-family:var(--mono);font-size:12px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="' + esc(item.logoUrl) + '" target="_blank" style="color:var(--lime)">' + esc(item.logoUrl) + '</a></td>' +
+            '<td><button class="btn-ghost cl-del" data-key="' + esc(item.key) + '" type="button" style="padding:6px 11px;font-size:12px">Restaurar original</button></td>' +
+          '</tr>'
+        ).join('') +
+        '</tbody></table></div>'
+      : '<div class="empty"><b>Sin logos personalizados aún</b>Pegá cualquier URL .png o .svg arriba para reemplazar el escudo de un club o liga.</div>') +
+    '</div>';
+
+  const tokEl = $('#clAdminTok');
+  if (tokEl) tokEl.addEventListener('input', (e) => sessionStorage.setItem('pivo_admin_token', e.target.value));
+
+  const urlEl = $('#clUrl');
+  const prevEl = $('#clPreview');
+  urlEl.addEventListener('input', () => {
+    const v = urlEl.value.trim();
+    if (/^https?:\/\/.+/i.test(v)) {
+      prevEl.src = v;
+      prevEl.style.display = 'block';
+    } else {
+      prevEl.style.display = 'none';
+    }
+  });
+
+  $('#clForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const targetType = $('#clType').value;
+    const identifier = $('#clId').value.trim();
+    const name = $('#clName').value.trim();
+    const logoUrl = $('#clUrl').value.trim();
+    const r = await fetch('/api/v1/custom-logos', {
+      method: 'POST',
+      headers: channelHeaders(),
+      body: JSON.stringify({ targetType, identifier, ...(name ? { name } : {}), logoUrl }),
+    });
+    const res = await r.json();
+    if (!r.ok || !res.ok) return renderCustomLogosView(res.error || 'Error guardando logo', true);
+    S.customLogosData = await apiGet('/api/v1/custom-logos');
+    updateLogosBadge(S.customLogosData.count || 0);
+    renderCustomLogosView('Logo guardado para "' + (res.data.name || res.data.identifier) + '" (' + res.persistedIn.toUpperCase() + ').');
+  });
+
+  document.querySelectorAll('.cl-del').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.key;
+      const r = await fetch('/api/v1/custom-logos/' + encodeURIComponent(key), {
+        method: 'DELETE',
+        headers: channelHeaders(),
+      });
+      const res = await r.json();
+      if (!r.ok || !res.ok) return renderCustomLogosView(res.error || 'Error eliminando logo', true);
+      S.customLogosData = await apiGet('/api/v1/custom-logos');
+      updateLogosBadge(S.customLogosData.count || 0);
+      renderCustomLogosView('Logo "' + key + '" eliminado; se restauró el original.');
+    });
+  });
+}
+
 async function loadHealth() {
   const r = await fetch('/api/v1/health');
   const h = await r.json();
@@ -1533,6 +1664,7 @@ $('#sideDatePick').addEventListener('change', (e) => { if (e.target.value) navig
 })();
 
 apiGet('/api/v1/excluded-leagues').then((r) => updateExclBadge(r.count || 0)).catch(() => {});
+apiGet('/api/v1/custom-logos').then((r) => updateLogosBadge(r.count || 0)).catch(() => {});
 navigate('matches:today');
 setInterval(() => {
   if (!document.hidden && S.view === 'matches' && (S.dateMode === 'today' || S.dateMode === 'live')) {

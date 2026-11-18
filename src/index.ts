@@ -15,6 +15,13 @@ import {
   getExcludedLeagues,
   removeExcludedLeague,
 } from './services/league-filter-store.ts';
+import {
+  applyCustomLogosToPayload,
+  deleteCustomLogo,
+  ensureCustomLogosLoaded,
+  getCustomLogos,
+  upsertCustomLogo,
+} from './services/custom-logo-store.ts';
 import { getFirebaseProjectInfo } from './services/firebase-config.ts';
 import { footballService, type ServiceResult } from './services/fusion.ts';
 import type { ApiResponse, EnvBindings } from './types/schema.ts';
@@ -64,6 +71,7 @@ app.use('/api/v1/*', async (c, next) => {
   await Promise.all([
     ensureChannelOverridesLoaded(c.env),
     ensureExcludedLeaguesLoaded(c.env),
+    ensureCustomLogosLoaded(c.env),
   ]);
   await next();
 });
@@ -121,7 +129,9 @@ function respondOk<T>(
 
   const body: ApiResponse<T> = {
     ok: true,
-    data: applyLeagueExclusionsToPayload(applyChannelOverridesToPayload(result.data)),
+    data: applyCustomLogosToPayload(
+      applyLeagueExclusionsToPayload(applyChannelOverridesToPayload(result.data)),
+    ),
     meta: {
       version,
       generatedAt: new Date().toISOString(),
@@ -331,6 +341,54 @@ app.delete('/api/v1/excluded-leagues/:slug', async (c) => {
   const res = await removeExcludedLeague(slug, c.env);
   if (!res.removed) {
     return c.json({ ok: false, error: `La liga '${slug}' no está en la lista de exclusión` }, 404);
+  }
+  return c.json({ ok: true, ...res });
+});
+
+const customLogoSchema = z.object({
+  targetType: z.enum(['team', 'league']),
+  identifier: z.string().trim().min(1, 'ID, slug o nombre requerido').max(120),
+  name: z.string().trim().max(120).optional(),
+  logoUrl: z
+    .string()
+    .trim()
+    .url('Debe ser una URL válida (https://...)')
+    .refine((u) => /^https?:\/\//i.test(u), 'La URL debe comenzar con http:// o https://'),
+});
+
+app.get('/api/v1/custom-logos', (c) => {
+  const data = getCustomLogos();
+  return c.json({
+    ok: true,
+    count: data.length,
+    persistence: 'firestore',
+    firebaseProjectId: getFirebaseProjectInfo(c.env).projectId,
+    authMode: c.env?.ADMIN_TOKEN ? 'token-protected' : 'open-dev',
+    data,
+  });
+});
+
+app.post('/api/v1/custom-logos', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const rawBody = await c.req.json().catch(() => null);
+  const parsed = customLogoSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.json({ ok: false, error: 'Payload inválido', issues: parsed.error.issues }, 400);
+  }
+  const res = await upsertCustomLogo(parsed.data, c.env);
+  return c.json({ ok: true, persistedIn: res.persistedIn, data: res.entry }, 201);
+});
+
+app.delete('/api/v1/custom-logos/:key', async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, error: 'Unauthorized: ADMIN_TOKEN requerido' }, 401);
+  }
+  const key = decodeURIComponent(c.req.param('key'));
+  const res = await deleteCustomLogo(key, c.env);
+  if (!res.removed) {
+    return c.json({ ok: false, error: `No existe logo personalizado para '${key}'` }, 404);
   }
   return c.json({ ok: true, ...res });
 });

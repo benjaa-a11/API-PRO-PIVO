@@ -428,6 +428,49 @@ async function runLiveE2E(): Promise<void> {
   assert.equal(exclDel.body.removed, true);
   console.log('GET/POST/DELETE /api/v1/excluded-leagues -> OK');
 
+  // Logos personalizados (PNG y SVG) en Firestore + aplicación automática + restauración
+  const unauthLogo = await callApi(
+    '/api/v1/custom-logos',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetType: 'team',
+        identifier: 'pm-igg',
+        logoUrl: 'https://example.com/boca.svg',
+      }),
+    },
+    { ADMIN_TOKEN: 'secreto-test-123' },
+  );
+  assert.equal(unauthLogo.status, 401);
+
+  const svgLogoUrl = 'https://example.com/boca-custom.svg';
+  const postTeamLogo = await callApi('/api/v1/custom-logos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      targetType: 'team',
+      identifier: 'pm-igg',
+      name: 'Boca Juniors',
+      logoUrl: svgLogoUrl,
+    }),
+  });
+  assert.equal(postTeamLogo.status, 201);
+  assert.equal(postTeamLogo.body.persistedIn, 'firestore');
+
+  const teamWithCustom = await callApi('/api/v1/teams/pm-igg');
+  assert.equal(teamWithCustom.status, 200);
+  assert.equal(teamWithCustom.body.data.team.logo, svgLogoUrl);
+  assert.equal(teamWithCustom.body.data.team.logos.custom, svgLogoUrl);
+
+  const delTeamLogo = await callApi(
+    '/api/v1/custom-logos/' + encodeURIComponent('team:pm-igg'),
+    { method: 'DELETE' },
+  );
+  assert.equal(delTeamLogo.status, 200);
+  assert.equal(delTeamLogo.body.removed, true);
+  console.log('GET/POST/DELETE /api/v1/custom-logos (PNG/SVG + Firestore) -> OK');
+
   const todayRes = await callApi('/api/v1/matches?date=today');
   assert.equal(todayRes.status, 200);
   assert.equal(todayRes.body.ok, true);
