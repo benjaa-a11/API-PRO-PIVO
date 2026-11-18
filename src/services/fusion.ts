@@ -126,7 +126,7 @@ function mergeTeamRefs(pm: UnifiedTeamRef, espn: UnifiedTeamRef): UnifiedTeamRef
     shortName: pm.shortName || espn.shortName,
     abbreviation: espn.abbreviation ?? pm.abbreviation,
     slug: pm.slug || espn.slug,
-    logo: pm.logos.promiedosLarge || espn.logos.espn || pm.logo || espn.logo,
+    logo: pm.logos.promiedosLarge || pm.logos.promiedos || espn.logos.espn || pm.logo || espn.logo,
     logos: {
       promiedos: pm.logos.promiedos,
       promiedosLarge: pm.logos.promiedosLarge,

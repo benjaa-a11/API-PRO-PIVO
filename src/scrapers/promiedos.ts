@@ -58,15 +58,15 @@ export function promiedosTeamLogo(id: string): string {
 }
 
 export function promiedosTeamLogoLarge(id: string): string {
-  return `${PM_API_BASE}/images/team/${id}/1`;
+  return `${PM_API_BASE}/images/team/${id}/4`;
 }
 
 export function promiedosLeagueLogo(id: string): string {
-  return `${PM_API_BASE}/images/league/${id}/1`;
+  return `${PM_API_BASE}/images/league/${id}/4`;
 }
 
 export function promiedosCountryFlag(countryId: string): string {
-  return `${PM_API_BASE}/images/country/${countryId}/1`;
+  return `${PM_API_BASE}/images/country/${countryId}/4`;
 }
 
 export function promiedosTvLogo(id: string): string {

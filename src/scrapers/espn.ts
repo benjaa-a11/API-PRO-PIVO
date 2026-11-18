@@ -66,21 +66,53 @@ function extractUidLeagueId(uid?: string): string | undefined {
   return match?.[1];
 }
 
+function upgradeEspnLogoQuality(url?: string): string | undefined {
+  if (!url || typeof url !== 'string') return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.includes('/combiner/i')) {
+    try {
+      const parsed = new URL(trimmed);
+      const inner = parsed.searchParams.get('img');
+      if (inner) {
+        const cleanInner = inner.startsWith('http')
+          ? inner
+          : `https://a.espncdn.com${inner.startsWith('/') ? '' : '/'}${inner}`;
+        return cleanInner;
+      }
+      parsed.searchParams.set('w', '500');
+      parsed.searchParams.set('h', '500');
+      return parsed.toString();
+    } catch {
+      return trimmed;
+    }
+  }
+  return trimmed;
+}
+
 function getEspnLogoUrls(
   obj: any,
   fallbackId?: string,
   kind: 'team' | 'league' = 'team',
 ): { defaultLogo?: string; darkLogo?: string } {
-  const logos = Array.isArray(obj?.logos) ? obj.logos : [];
-  const defaultEntry =
-    logos.find((l: any) => Array.isArray(l?.rel) && l.rel.includes('default')) ?? logos[0];
-  const darkEntry = logos.find(
-    (l: any) => Array.isArray(l?.rel) && l.rel.includes('dark'),
-  );
+  const logos = Array.isArray(obj?.logos) ? [...obj.logos] : [];
+  const byWidthDesc = (list: any[]) =>
+    [...list].sort((a, b) => Number(b?.width ?? 0) - Number(a?.width ?? 0));
 
-  let defaultLogo: string | undefined =
-    defaultEntry?.href ?? (typeof obj?.logo === 'string' ? obj.logo : undefined);
-  let darkLogo: string | undefined = darkEntry?.href;
+  const defaultCandidates = byWidthDesc(
+    logos.filter((l: any) => Array.isArray(l?.rel) && l.rel.includes('default')),
+  );
+  const darkCandidates = byWidthDesc(
+    logos.filter((l: any) => Array.isArray(l?.rel) && l.rel.includes('dark')),
+  );
+  const anyBest = byWidthDesc(logos)[0];
+
+  let defaultLogo: string | undefined = upgradeEspnLogoQuality(
+    defaultCandidates[0]?.href ??
+      anyBest?.href ??
+      (typeof obj?.logo === 'string' ? obj.logo : undefined),
+  );
+  let darkLogo: string | undefined = upgradeEspnLogoQuality(darkCandidates[0]?.href);
 
   if (!defaultLogo && fallbackId) {
     defaultLogo =
@@ -107,7 +139,7 @@ export function mapEspnLeagueRef(rawLeague: EspnLeagueHint): UnifiedLeagueRef {
     `espn-${espnId ?? 'unknown'}`;
 
   const espnLogo =
-    rawLeague.logo ??
+    upgradeEspnLogoQuality(rawLeague.logo) ??
     (espnId
       ? `https://a.espncdn.com/i/leaguelogos/soccer/500/${espnId}.png`
       : undefined);
@@ -1103,17 +1135,22 @@ export async function fetchEspnLeaguesCatalog(): Promise<UnifiedLeagueRef[]> {
       ? data.items
       : [];
 
-  return items.map((item: any) =>
-    mapEspnLeagueRef({
+  return items.map((item: any) => {
+    const { defaultLogo, darkLogo } = getEspnLogoUrls(
+      item,
+      item?.id ? String(item.id) : undefined,
+      'league',
+    );
+    return mapEspnLeagueRef({
       id: item?.id ? String(item.id) : undefined,
       name: item?.name ? String(item.name) : undefined,
       shortName: item?.shortName ? String(item.shortName) : undefined,
       abbrev: item?.abbreviation ? String(item.abbreviation) : undefined,
       slug: item?.slug ? String(item.slug) : undefined,
-      logo: item?.logos?.[0]?.href,
-      logoDark: item?.logos?.[1]?.href,
-    }),
-  );
+      logo: defaultLogo,
+      logoDark: darkLogo,
+    });
+  });
 }
 
 export async function fetchEspnTeam(

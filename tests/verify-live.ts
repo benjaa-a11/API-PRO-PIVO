@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import worker from '../src/index.ts';
 import { resolveTvChannel } from '../src/config/mappings.ts';
+import { promiedosLeagueLogo, promiedosTeamLogo, promiedosTeamLogoLarge } from '../src/scrapers/promiedos.ts';
 import { mergeMatchDetails, mergeMatches } from '../src/services/fusion.ts';
 import { renderDashboardHtml } from '../src/ui/dashboard.ts';
 import type {
@@ -310,6 +311,11 @@ function runUnitInvariants(): void {
   const dashHtml = renderDashboardHtml('http://localhost:8787');
   const emojiMatch = dashHtml.match(/[\u{1F300}-\u{1FAFF}]|\u26BD|\u26A1|\u2B50|\u{1F1E6}-\u{1F1FF}/u);
   assert.equal(emojiMatch, null, `Unexpected emoji in dashboard HTML: ${emojiMatch?.[0]}`);
+
+  // High-res /4 logo invariants
+  assert.ok(promiedosTeamLogo('igg').endsWith('/4'));
+  assert.ok(promiedosTeamLogoLarge('igg').endsWith('/4'));
+  assert.ok(promiedosLeagueLogo('hc').endsWith('/4'));
 
   console.log('Unit invariants PASSED.');
 }
