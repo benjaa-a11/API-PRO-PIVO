@@ -120,8 +120,9 @@ export function normalizeTeamName(rawName: string): string {
     cleaned = resolveAliasSafely(cleaned);
   }
 
-  // Quitar puntos, apóstrofes y normalizar guiones
+  // Quitar puntos, apóstrofes, prefijos numéricos alemanes (1. FC Köln) y normalizar guiones
   cleaned = cleaned
+    .replace(/^\d+\.\s*/, '')
     .replace(/\./g, '')
     .replace(/'/g, '')
     .replace(/\s*-\s*/g, '-')
@@ -138,7 +139,7 @@ export function normalizeTeamName(rawName: string): string {
     cleaned = strippedPrefix;
   }
 
-  // Expansión uniforme de abreviaturas comunes en Argentina y Sudamérica
+  // Expansión uniforme de abreviaturas comunes en Argentina, Sudamérica y Europa
   cleaned = cleaned
     .replace(/\batl\b/g, 'atletico')
     .replace(/\bdep\b/g, 'deportivo')
@@ -146,6 +147,11 @@ export function normalizeTeamName(rawName: string): string {
     .replace(/\bgral\b/g, 'general')
     .replace(/\bdef\b/g, 'defensa')
     .replace(/\bindep\b/g, 'independiente')
+    .replace(/\bu la calera\b/g, 'union la calera')
+    .replace(/\bu de chile\b/g, 'universidad de chile')
+    .replace(/\bu catolica\b/g, 'universidad catolica')
+    .replace(/\bcologne\b/g, 'koln')
+    .replace(/\bmunchen\b/g, 'munich')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -254,10 +260,13 @@ export function teamsMatchScore(nameA: string, nameB: string): number {
   }
 
   if (containment === 1 && minLen === 1 && tokensA[0].length >= 6 && maxLen === 2) {
-    // Ejemplo: "palmeiras" vs "se palmeiras", pero evitar "nacional" vs "atletico nacional"
+    // Ejemplo: "palmeiras" vs "se palmeiras", "cobresal" vs "deportes cobresal", "recoleta" vs "deportivo recoleta"
+    // Evitar "nacional" vs "atletico nacional"
     const otherTokens = setA.size > setB.size ? tokensA : tokensB;
-    const extraToken = otherTokens.find((t) => t !== (setA.size === 1 ? tokensA[0] : tokensB[0])) ?? '';
-    if (extraToken.length <= 3) return 0.86;
+    const singleToken = setA.size === 1 ? tokensA[0] : tokensB[0];
+    const extraToken = otherTokens.find((t) => t !== singleToken) ?? '';
+    const safePrefixes = new Set(['deportes', 'deportivo', 'sport', 'sporting']);
+    if (extraToken.length <= 3 || safePrefixes.has(extraToken)) return 0.86;
   }
 
   return Number(dice.toFixed(3));

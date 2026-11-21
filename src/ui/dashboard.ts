@@ -264,6 +264,13 @@ img{display:block}
 .ch-in.mono{font-family:var(--mono)}
 .ch-toast{padding:10px 14px;border-radius:14px;border:1px solid rgba(200,255,71,.35);background:rgba(200,255,71,.1);color:var(--lime);font-size:13px;margin-bottom:12px}
 .ch-toast.err{border-color:rgba(255,77,94,.4);background:rgba(255,77,94,.1);color:var(--red)}
+.to-top{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:20;width:42px;height:42px;border-radius:14px;
+  border:1px solid var(--line);background:rgba(18,21,29,.84);backdrop-filter:saturate(180%) blur(18px);-webkit-backdrop-filter:saturate(180%) blur(18px);
+  display:grid;place-items:center;color:var(--tx);opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .22s,transform .22s cubic-bezier(.22,1,.36,1)}
+.to-top.show{opacity:1;pointer-events:auto;transform:translateY(0)}
+.to-top:hover{border-color:var(--lime);color:var(--lime)}
+.foot-tv{display:inline-flex;align-items:center;gap:5px;color:var(--tx);font-weight:500}
+.foot-tv svg{width:13px;height:13px;color:var(--lime);flex:none}
 .nav-badge{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(255,77,94,.18);color:var(--red);font-weight:700}
 .nav-date-wrap{padding:6px 10px 2px}
 .nav-date{width:100%;padding:8px 11px;border-radius:11px;border:1px solid var(--line);background:var(--bg);font-size:13px;color:var(--tx);color-scheme:dark}
@@ -586,12 +593,14 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
 </div>
 
 <div class="ov" id="ov" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
+<button class="to-top" id="toTop" aria-label="Volver arriba" title="Volver arriba"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m18 15-6-6-6 6"/></svg></button>
 
 <script>
 const REFRESH_MS = 30000;
 const STATUS_ES = {'First Half':'Primer Tiempo','Second Half':'Segundo Tiempo','Halftime':'Entretiempo','Full Time':'Finalizado','En progreso':'En juego','Scheduled':'Programado'};
 const ICO_GOAL = '<svg class="ev-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m12 7 3 2.5-1 3.5h-4L9 9.5Z"/></svg>';
 const ICO_SUB = '<svg class="ev-ico sub" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 10 5-5 5 5M17 14l-5 5-5-5"/></svg>';
+const ICO_TV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="m17 2-5 5-5-5"/></svg>';
 
 const S = {
   view: 'matches', // matches | league | catalog | team | search | explorer | mappings | health
@@ -831,6 +840,7 @@ function renderMatchCard(m, i) {
   const gs = (m.goals || []).length ? '<div class="scorers"><div>' + sc('home') + '</div><div>' + sc('away') + '</div></div>' : '';
   const rc = (t) => t.redCards ? '<span class="red" title="Expulsados: ' + t.redCards + '"></span>' : '';
 
+  const tvNames = (m.broadcasts || []).map((b) => b.name).slice(0, 2).join(', ');
   return '<button class="card ' + k + '" style="--c1:' + esc(h.colors?.primary || '#888') + ';--c2:' + esc(a.colors?.primary || '#888') + ';--i:' + i + '" data-m="' + esc(m.id) + '">' +
     '<div class="top"><span class="st ' + k + '">' + stx + '</span><span>' + esc(m.stageRound || '') + '</span></div>' +
     '<div class="match">' +
@@ -839,7 +849,7 @@ function renderMatchCard(m, i) {
       '<div class="team">' + logo(a) + '<span class="nm">' + esc(a.shortName || a.name) + rc(a) + '</span>' + formDots(a.form) + '</div>' +
     '</div>' +
     gs +
-    '<div class="foot"><span>' + esc(m.venue?.name || 'Estadio a confirmar') + '</span><span>' + esc((m.broadcasts || []).map((b) => b.name).slice(0, 2).join(', ')) + '</span></div>' +
+    '<div class="foot"><span>' + esc(m.venue?.name || 'Estadio a confirmar') + '</span>' + (tvNames ? '<span class="foot-tv">' + ICO_TV + esc(tvNames) + '</span>' : '<span></span>') + '</div>' +
   '</button>';
 }
 
@@ -1515,7 +1525,7 @@ function renderCustomLogosView(toastMsg = '', isErr = false) {
   const prevEl = $('#clPreview');
   urlEl.addEventListener('input', () => {
     const v = urlEl.value.trim();
-    if (/^https?:\/\/.+/i.test(v)) {
+    if (v.startsWith('http://') || v.startsWith('https://')) {
       prevEl.src = v;
       prevEl.style.display = 'block';
     } else {
@@ -1662,6 +1672,12 @@ $('#sideDatePick').addEventListener('change', (e) => { if (e.target.value) navig
   sheet.addEventListener('pointerup', endDrag);
   sheet.addEventListener('pointercancel', endDrag);
 })();
+
+const toTopBtn = $('#toTop');
+window.addEventListener('scroll', () => {
+  if (toTopBtn) toTopBtn.classList.toggle('show', window.scrollY > 360);
+}, { passive: true });
+if (toTopBtn) toTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 
 apiGet('/api/v1/excluded-leagues').then((r) => updateExclBadge(r.count || 0)).catch(() => {});
 apiGet('/api/v1/custom-logos').then((r) => updateLogosBadge(r.count || 0)).catch(() => {});

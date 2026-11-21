@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import worker from '../src/index.ts';
 import { resolveTvChannel } from '../src/config/mappings.ts';
 import { promiedosLeagueLogo, promiedosTeamLogo, promiedosTeamLogoLarge } from '../src/scrapers/promiedos.ts';
@@ -307,10 +308,76 @@ function runUnitInvariants(): void {
   assert.equal(unknownCh.id, null);
   assert.equal(unknownCh.mapped, false);
 
-  // Dashboard zero-emoji invariant
+  // Dashboard zero-emoji & JS syntax compilation invariant
   const dashHtml = renderDashboardHtml('http://localhost:8787');
   const emojiMatch = dashHtml.match(/[\u{1F300}-\u{1FAFF}]|\u26BD|\u26A1|\u2B50|\u{1F1E6}-\u{1F1FF}/u);
   assert.equal(emojiMatch, null, `Unexpected emoji in dashboard HTML: ${emojiMatch?.[0]}`);
+  const scriptMatch = dashHtml.match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(scriptMatch?.[1], 'Dashboard must include inline <script>');
+  new vm.Script(scriptMatch[1], { filename: 'dashboard-inline.js' });
+
+  // Deduplication invariants (Promiedos priority + same-league/same-time 1-team exact match)
+  const mkMatch = (
+    id: string,
+    src: 'promiedos' | 'espn',
+    leagueSlug: string,
+    home: string,
+    away: string,
+    dateIso: string,
+    broadcasts: any[] = [],
+  ): UnifiedMatch => ({
+    id,
+    canonicalKey: `${leagueSlug}:${home}-${away}`,
+    externalIds: src === 'promiedos' ? { promiedos: id } : { espn: id },
+    sources: [src],
+    urlSlug: id,
+    dateIso,
+    dateLocalAr: '2026-11-20',
+    timeLocalAr: '20:00',
+    league: {
+      id: leagueSlug,
+      canonicalSlug: leagueSlug,
+      externalIds: {},
+      name: leagueSlug,
+      slug: leagueSlug,
+      isInternational: false,
+      logo: '',
+      logos: {},
+    },
+    status: {
+      state: 'PRE',
+      code: '1',
+      label: 'Programado',
+      shortLabel: 'PRE',
+      minute: null,
+      minuteDisplay: '',
+      period: null,
+      isLive: false,
+      isFinished: false,
+    },
+    home: { id: 'h', externalIds: {}, name: home, shortName: home, slug: home, logo: '', logos: {}, score: null, redCards: 0 },
+    away: { id: 'a', externalIds: {}, name: away, shortName: away, slug: away, logo: '', logos: {}, score: null, redCards: 0 },
+    goals: [],
+    cards: [],
+    broadcasts,
+  });
+
+  const dedupRes = mergeMatches(
+    [
+      mkMatch('pm-1', 'promiedos', 'liga-profesional', 'Vélez Sarsfield', 'Belgrano', '2026-11-20T23:00:00Z', [
+        { id: 'tntsports', name: 'TNT Sports', mapped: true },
+      ]),
+      mkMatch('pm-2', 'promiedos', 'bundesliga', 'Bayern Munich', '1. FC Köln', '2026-11-20T19:30:00Z'),
+    ],
+    [
+      mkMatch('es-1', 'espn', 'liga-profesional', 'Vélez Sarsfield', 'Belgrano (Córdoba)', '2026-11-20T23:00:00Z'),
+      mkMatch('es-2', 'espn', 'bundesliga', 'Bayern Munich', 'FC Cologne', '2026-11-20T19:30:00Z'),
+    ],
+  );
+  assert.equal(dedupRes.length, 2, `Expected 2 fused matches, got ${dedupRes.length}`);
+  assert.equal(dedupRes[0].sources.length, 2);
+  assert.equal(dedupRes[0].broadcasts[0]?.id, 'tntsports');
+  assert.equal(dedupRes[1].sources.length, 2);
 
   // High-res /4 logo invariants
   assert.ok(promiedosTeamLogo('igg').endsWith('/4'));

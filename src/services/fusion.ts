@@ -309,7 +309,9 @@ export function mergeMatches(
 ): UnifiedMatch[] {
   const usedEspn = new Set<number>();
   const fused: UnifiedMatch[] = [];
+  const unmatchedPmIdx: number[] = [];
 
+  // Pase 1: Match fuerte por ambos equipos (prioridad Promiedos como base)
   for (const pm of pmMatches) {
     let bestIdx = -1;
     let bestSwapped = false;
@@ -325,12 +327,12 @@ export function mergeMatches(
 
       const directH = teamsMatchScore(pm.home.name, espn.home.name);
       const directA = teamsMatchScore(pm.away.name, espn.away.name);
-      const directValid = directH >= 0.78 && directA >= 0.78;
+      const directValid = directH >= 0.74 && directA >= 0.74;
       const directAvg = directValid ? (directH + directA) / 2 : 0;
 
       const swapH = teamsMatchScore(pm.home.name, espn.away.name);
       const swapA = teamsMatchScore(pm.away.name, espn.home.name);
-      const swapValid = swapH >= 0.78 && swapA >= 0.78;
+      const swapValid = swapH >= 0.74 && swapA >= 0.74;
       const swapAvg = swapValid ? (swapH + swapA) / 2 : 0;
 
       const leagueBonus =
@@ -352,13 +354,80 @@ export function mergeMatches(
       usedEspn.add(bestIdx);
       fused.push(fuseTwoMatches(pm, espnMatches[bestIdx], bestSwapped));
     } else {
+      unmatchedPmIdx.push(fused.length);
       fused.push(pm);
     }
   }
 
+  // Pase 2: Cruce determinista por Misma Liga + Misma Hora (<=2.5h) + 1 Equipo Exacto (>=0.85)
+  // Evita duplicados cuando un rival tiene alias diferente (ej. "Belgrano" vs "Belgrano (Córdoba)", "1. FC Köln" vs "FC Cologne")
+  for (const fusedPos of unmatchedPmIdx) {
+    const pm = fused[fusedPos];
+    let bestIdx = -1;
+    let bestSwapped = false;
+    let bestScore = 0;
+
+    for (let i = 0; i < espnMatches.length; i++) {
+      if (usedEspn.has(i)) continue;
+      const espn = espnMatches[i];
+      if (pm.league.canonicalSlug !== espn.league.canonicalSlug) continue;
+
+      const diffHours = hoursBetweenIso(pm.dateIso, espn.dateIso);
+      const sameTime =
+        (diffHours !== null && diffHours <= 2.5) ||
+        (Boolean(pm.timeLocalAr) && pm.timeLocalAr === espn.timeLocalAr && pm.dateLocalAr === espn.dateLocalAr);
+      if (!sameTime) continue;
+
+      const directH = teamsMatchScore(pm.home.name, espn.home.name);
+      const directA = teamsMatchScore(pm.away.name, espn.away.name);
+      const directOneExact = (directH >= 0.85 && directA >= 0) || (directA >= 0.85 && directH >= 0);
+
+      const swapH = teamsMatchScore(pm.home.name, espn.away.name);
+      const swapA = teamsMatchScore(pm.away.name, espn.home.name);
+      const swapOneExact = (swapH >= 0.85 && swapA >= 0) || (swapA >= 0.85 && swapH >= 0);
+
+      const directScore = directOneExact ? Math.max(directH, directA) + Math.min(directH, directA) * 0.5 : 0;
+      const swapScore = swapOneExact ? Math.max(swapH, swapA) + Math.min(swapH, swapA) * 0.5 - 0.02 : 0;
+
+      if (directScore > bestScore) {
+        bestScore = directScore;
+        bestIdx = i;
+        bestSwapped = false;
+      }
+      if (swapScore > bestScore) {
+        bestScore = swapScore;
+        bestIdx = i;
+        bestSwapped = true;
+      }
+    }
+
+    if (bestIdx !== -1) {
+      usedEspn.add(bestIdx);
+      fused[fusedPos] = fuseTwoMatches(pm, espnMatches[bestIdx], bestSwapped);
+    }
+  }
+
+  // Agregar partidos exclusivos de ESPN que NO duplican ninguno ya fusionado
   for (let i = 0; i < espnMatches.length; i++) {
-    if (!usedEspn.has(i)) {
-      fused.push(espnMatches[i]);
+    if (usedEspn.has(i)) continue;
+    const espn = espnMatches[i];
+    const isDuplicate = fused.some((existing) => {
+      if (existing.canonicalKey === espn.canonicalKey) return true;
+      const diffHours = hoursBetweenIso(existing.dateIso, espn.dateIso);
+      if (diffHours !== null && diffHours > 4) return false;
+      const dH = teamsMatchScore(existing.home.name, espn.home.name);
+      const dA = teamsMatchScore(existing.away.name, espn.away.name);
+      if (dH >= 0.74 && dA >= 0.74) return true;
+      if (
+        existing.league.canonicalSlug === espn.league.canonicalSlug &&
+        (dH >= 0.88 || dA >= 0.88)
+      ) {
+        return true;
+      }
+      return false;
+    });
+    if (!isDuplicate) {
+      fused.push(espn);
     }
   }
 
