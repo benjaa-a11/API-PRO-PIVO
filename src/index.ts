@@ -168,7 +168,7 @@ app.get('/api/v1/health', (c) => {
     version: c.env?.API_VERSION ?? '1.0.0',
     environment: c.env?.ENVIRONMENT ?? 'development',
     timezone: c.env?.DEFAULT_TIMEZONE ?? 'America/Argentina/Buenos_Aires',
-    sources: ['promiedos', 'espn'],
+    sources: ['promiedos'],
     mappedLeaguesCount: LEAGUE_MAPPINGS.length,
     kvConfigured: Boolean(c.env?.FOOTBALL_KV),
     firebaseConfigured: true,

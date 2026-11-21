@@ -2,13 +2,6 @@ import { LEAGUE_MAPPINGS, findLeagueMapping } from '../config/mappings.ts';
 import { HttpError } from '../utils/http.ts';
 import { isLeagueRefExcluded } from './league-filter-store.ts';
 import {
-  fetchEspnLeaguesCatalog,
-  fetchEspnMatchSummary,
-  fetchEspnScoreboard,
-  fetchEspnStandings,
-  fetchEspnTeam,
-} from '../scrapers/espn.ts';
-import {
   fetchPromiedosDay,
   fetchPromiedosLeague,
   fetchPromiedosLeagueRound,
@@ -774,43 +767,16 @@ export class FootballService {
       `day:${dates.isoDate}`,
       ttl,
       async () => {
-        const [pmRes, espnRes] = await Promise.allSettled([
-          fetchPromiedosDay(dates.pmDate),
-          fetchEspnScoreboard(dates.espnDate, 'all'),
-        ]);
-
-        const pmMatches =
-          pmRes.status === 'fulfilled' ? pmRes.value.matches : [];
-        const espnMatches =
-          espnRes.status === 'fulfilled' ? espnRes.value.matches : [];
-
-        if (pmRes.status === 'rejected') {
-          warnings.push(`Promiedos day fetch error: ${pmRes.reason?.message ?? pmRes.reason}`);
-        } else if (pmMatches.length > 0) {
-          activeSources.add('promiedos');
-        }
-
-        if (espnRes.status === 'rejected') {
-          warnings.push(`ESPN scoreboard fetch error: ${espnRes.reason?.message ?? espnRes.reason}`);
-        } else if (espnMatches.length > 0) {
-          activeSources.add('espn');
-        }
-
-        if (pmMatches.length === 0 && espnMatches.length === 0 && pmRes.status === 'rejected' && espnRes.status === 'rejected') {
-          throw new Error('Both Promiedos and ESPN scoreboards failed');
-        }
-
-        const merged = mergeMatches(pmMatches, espnMatches);
-        return buildScoreboardPayload(dates.isoDate, merged);
+        const pmDay = await fetchPromiedosDay(dates.pmDate);
+        activeSources.add('promiedos');
+        return buildScoreboardPayload(dates.isoDate, pmDay.matches);
       },
       { staleTtlSeconds: isToday ? 180 : 1800, waitUntil, bypassCache },
       env,
     );
 
     if (cached.warning) warnings.push(cached.warning);
-    for (const m of cached.value.matches) {
-      for (const s of m.sources) activeSources.add(s);
-    }
+    if (activeSources.size === 0) activeSources.add('promiedos');
 
     const filtered = applyMatchFilters(cached.value, filters);
 
@@ -854,84 +820,20 @@ export class FootballService {
     bypassCache = false,
   ): Promise<ServiceResult<UnifiedMatchDetail>> {
     const start = Date.now();
-    let { pmId, espnId } = this.parseMatchIdentifier(rawId);
+    const { pmId } = this.parseMatchIdentifier(rawId);
     const warnings: string[] = [];
 
-    // Buscar si ya tenemos el cruce PM <-> ESPN en el día de hoy
-    if (!pmId || !espnId) {
-      try {
-        const today = await this.getScoreboardByDate('today', {}, env, waitUntil);
-        const found = today.data.matches.find(
-          (m) =>
-            m.id === rawId ||
-            (pmId && m.externalIds.promiedos === pmId) ||
-            (espnId && m.externalIds.espn === espnId),
-        );
-        if (found) {
-          pmId = found.externalIds.promiedos ?? pmId;
-          espnId = found.externalIds.espn ?? espnId;
-        }
-      } catch {
-        // Ignorar si hoy falla; continuamos con el ID directo
-      }
+    if (!pmId) {
+      throw new HttpError(400, `ID de partido Promiedos inválido: "${rawId}"`);
     }
 
-    const cacheKey = `match:${pmId ?? ''}:${espnId ?? ''}`;
+    const cacheKey = `match:pm:${pmId}`;
     const ttl = parseTtl(env?.CACHE_DETAIL_LIVE_TTL, 20);
 
     const cached = await this.cache.getOrFetch(
       cacheKey,
       ttl,
-      async () => {
-        const [pmRes, espnRes] = await Promise.allSettled([
-          pmId ? fetchPromiedosMatchDetail(pmId) : Promise.resolve(undefined),
-          espnId ? fetchEspnMatchSummary(espnId) : Promise.resolve(undefined),
-        ]);
-
-        let pmDetail = pmRes.status === 'fulfilled' ? pmRes.value : undefined;
-        let espnDetail = espnRes.status === 'fulfilled' ? espnRes.value : undefined;
-
-        if (pmRes.status === 'rejected') {
-          warnings.push(`Promiedos gamecenter error: ${pmRes.reason?.message ?? pmRes.reason}`);
-        }
-        if (espnRes.status === 'rejected') {
-          warnings.push(`ESPN summary error: ${espnRes.reason?.message ?? espnRes.reason}`);
-        }
-
-        // Si solo teníamos una fuente, intentar resolver el ID espejo por fecha del partido
-        const anchorMatch = pmDetail?.match ?? espnDetail?.match;
-        if (anchorMatch && (!pmDetail || !espnDetail)) {
-          try {
-            const matchDay = await this.getScoreboardByDate(
-              anchorMatch.dateLocalAr || 'today',
-              {},
-              env,
-              waitUntil,
-            );
-            const paired = matchDay.data.matches.find(
-              (m) =>
-                (pmId && m.externalIds.promiedos === pmId) ||
-                (espnId && m.externalIds.espn === espnId),
-            );
-            if (paired) {
-              if (!pmDetail && paired.externalIds.promiedos) {
-                pmDetail = await fetchPromiedosMatchDetail(
-                  paired.externalIds.promiedos,
-                ).catch(() => undefined);
-              }
-              if (!espnDetail && paired.externalIds.espn) {
-                espnDetail = await fetchEspnMatchSummary(
-                  paired.externalIds.espn,
-                ).catch(() => undefined);
-              }
-            }
-          } catch {
-            // No bloquear el detalle si falla la resolución cruzada
-          }
-        }
-
-        return mergeMatchDetails(pmDetail, espnDetail);
-      },
+      async () => fetchPromiedosMatchDetail(pmId),
       { staleTtlSeconds: 300, waitUntil, bypassCache },
       env,
     );
@@ -941,7 +843,7 @@ export class FootballService {
     return {
       data: cached.value,
       cache: cached.cache,
-      sources: cached.value.match.sources,
+      sources: ['promiedos'],
       warnings,
       tookMs: Date.now() - start,
     };
@@ -961,49 +863,45 @@ export class FootballService {
     const start = Date.now();
     const ttl = parseTtl(env?.CACHE_CATALOG_TTL, 21600);
     const warnings: string[] = [];
-    const sources: DataSourceName[] = [];
 
     const cached = await this.cache.getOrFetch(
       'catalog:leagues',
       ttl,
       async () => {
-        const [pmRes, espnRes] = await Promise.allSettled([
-          fetchPromiedosMenu(),
-          fetchEspnLeaguesCatalog(),
-        ]);
-
-        const categories = pmRes.status === 'fulfilled' ? pmRes.value : [];
-        const espnLeagues = espnRes.status === 'fulfilled' ? espnRes.value : [];
-
-        if (pmRes.status === 'rejected') {
-          warnings.push(`Promiedos menu error: ${pmRes.reason?.message ?? pmRes.reason}`);
-        } else if (categories.length > 0) {
-          sources.push('promiedos');
+        let categories = (await fetchPromiedosMenu().catch(() => [] as LeagueCategory[])).filter(
+          (c) => c.leagues.length > 0,
+        );
+        if (categories.length === 0) {
+          const byCountry = new Map<string, UnifiedLeagueRef[]>();
+          for (const m of LEAGUE_MAPPINGS) {
+            if (!m.promiedosId) continue;
+            const list = byCountry.get(m.countryName) ?? [];
+            const logo = `https://api.promiedos.com.ar/images/league/${m.promiedosId}/4`;
+            list.push({
+              id: m.canonicalSlug,
+              canonicalSlug: m.canonicalSlug,
+              externalIds: { promiedos: m.promiedosId },
+              name: m.name,
+              slug: m.promiedosSlug ?? m.canonicalSlug,
+              countryId: m.countryId,
+              countryName: m.countryName,
+              countryFlag: `https://api.promiedos.com.ar/images/country/${m.countryId}/4`,
+              isInternational: m.isInternational,
+              logo,
+              logos: { promiedos: logo },
+              promiedosUrl: `https://www.promiedos.com.ar/league/${m.promiedosSlug ?? m.canonicalSlug}/${m.promiedosId}`,
+            });
+            byCountry.set(m.countryName, list);
+          }
+          categories = Array.from(byCountry.entries()).map(([name, leagues]) => ({
+            name,
+            leagues,
+          }));
         }
-
-        if (espnRes.status === 'rejected') {
-          warnings.push(`ESPN catalog error: ${espnRes.reason?.message ?? espnRes.reason}`);
-        } else if (espnLeagues.length > 0) {
-          sources.push('espn');
-        }
-
-        // Agregar una categoría con las ligas extra de ESPN no listadas en Promiedos
-        const knownSlugs = new Set<string>();
-        for (const c of categories) {
-          for (const l of c.leagues) knownSlugs.add(l.canonicalSlug);
-        }
-        const extraEspn = espnLeagues.filter((l) => !knownSlugs.has(l.canonicalSlug));
-        if (extraEspn.length > 0) {
-          categories.push({
-            name: 'Catálogo Global ESPN',
-            leagues: extraEspn,
-          });
-        }
-
         return {
           featured: LEAGUE_MAPPINGS,
           categories,
-          espnCount: espnLeagues.length,
+          espnCount: 0,
         };
       },
       { staleTtlSeconds: 43200, waitUntil, bypassCache },
@@ -1011,12 +909,11 @@ export class FootballService {
     );
 
     if (cached.warning) warnings.push(cached.warning);
-    if (sources.length === 0) sources.push('promiedos', 'espn');
 
     return {
       data: cached.value,
       cache: cached.cache,
-      sources,
+      sources: ['promiedos'],
       warnings,
       tookMs: Date.now() - start,
     };
@@ -1047,13 +944,13 @@ export class FootballService {
       (/^[a-z]{1,6}$/i.test(identifier) && !identifier.includes('.') && !identifier.includes('-')
         ? identifier
         : undefined);
-    const espnSlug =
-      mapping?.espnSlug ??
-      (identifier.includes('.') ? identifier : undefined);
+
+    if (!pmId) {
+      throw new HttpError(404, `Liga Promiedos no encontrada para "${identifier}"`);
+    }
 
     const ttl = parseTtl(env?.CACHE_LEAGUE_TTL, 300);
     const warnings: string[] = [];
-    const activeSources = new Set<DataSourceName>();
 
     const cacheKey = `league:${mapping?.canonicalSlug ?? identifier}:${roundKey ?? 'default'}`;
 
@@ -1061,37 +958,8 @@ export class FootballService {
       cacheKey,
       ttl,
       async () => {
-        const [pmRes, espnStdRes] = await Promise.allSettled([
-          pmId
-            ? fetchPromiedosLeague(pmId, mapping?.promiedosSlug)
-            : Promise.resolve(undefined),
-          espnSlug
-            ? fetchEspnStandings(espnSlug)
-            : Promise.resolve([] as StandingGroup[]),
-        ]);
-
-        const pmDetail = pmRes.status === 'fulfilled' ? pmRes.value : undefined;
-        const espnGroups =
-          espnStdRes.status === 'fulfilled' ? espnStdRes.value : [];
-
-        if (pmRes.status === 'rejected') {
-          warnings.push(`Promiedos league error: ${pmRes.reason?.message ?? pmRes.reason}`);
-        } else if (pmDetail) {
-          activeSources.add('promiedos');
-        }
-
-        if (espnStdRes.status === 'rejected') {
-          warnings.push(`ESPN standings error: ${espnStdRes.reason?.message ?? espnStdRes.reason}`);
-        } else if (espnGroups.length > 0) {
-          activeSources.add('espn');
-        }
-
-        if (!pmDetail && !espnSlug) {
-          throw new Error(`Unknown league identifier "${identifier}"`);
-        }
-
-        // Si se pide una fecha específica (roundKey)
-        if (pmDetail && roundKey && pmId) {
+        const pmDetail = await fetchPromiedosLeague(pmId, mapping?.promiedosSlug);
+        if (roundKey) {
           const roundMatches = await fetchPromiedosLeagueRound(
             pmId,
             roundKey,
@@ -1100,94 +968,18 @@ export class FootballService {
           pmDetail.matches = roundMatches;
           pmDetail.selectedRound = roundKey;
         }
-
-        if (pmDetail) {
-          // Enriquecer logos/externalIds de ESPN en las tablas de Promiedos
-          const espnTeamLookup = new Map<string, { id?: string; logo: string }>();
-          for (const g of espnGroups) {
-            for (const t of g.tables) {
-              for (const r of t.rows) {
-                if (r.team.name && r.team.logo) {
-                  espnTeamLookup.set(r.team.name, {
-                    id: r.team.externalIds.espn,
-                    logo: r.team.logo,
-                  });
-                }
-              }
-            }
-          }
-
-          if (espnTeamLookup.size > 0) {
-            for (const g of pmDetail.standingsGroups) {
-              for (const t of g.tables) {
-                for (const row of t.rows) {
-                  for (const [espnName, info] of espnTeamLookup.entries()) {
-                    if (areSameTeam(row.team.name, espnName)) {
-                      row.team.externalIds.espn = info.id;
-                      if (!row.team.logo) row.team.logo = info.logo;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          if (pmDetail.standingsGroups.length === 0 && espnGroups.length > 0) {
-            pmDetail.standingsGroups = espnGroups;
-          }
-
-          if (espnSlug) {
-            pmDetail.league.espnUrl = `https://www.espn.com.ar/futbol/liga/_/nombre/${espnSlug}`;
-            pmDetail.league.externalIds.espn = mapping?.espnId;
-          }
-
-          return pmDetail;
-        }
-
-        // Modo solo ESPN para ligas no mapeadas a Promiedos
-        const espnToday = await fetchEspnScoreboard(
-          formatDateFormats('today', env?.DEFAULT_TIMEZONE).espnDate,
-          espnSlug!,
-        ).catch(() => ({ leagues: [], matches: [] }));
-        activeSources.add('espn');
-
-        const leagueRef: UnifiedLeagueRef = espnToday.leagues[0] ?? {
-          id: mapping?.canonicalSlug ?? identifier,
-          canonicalSlug: mapping?.canonicalSlug ?? identifier,
-          externalIds: { espn: mapping?.espnId, promiedos: mapping?.promiedosId },
-          name: mapping?.name ?? identifier,
-          slug: espnSlug!,
-          countryId: mapping?.countryId,
-          countryName: mapping?.countryName,
-          isInternational: mapping?.isInternational ?? false,
-          logo: mapping?.espnId
-            ? `https://a.espncdn.com/i/leaguelogos/soccer/500/${mapping.espnId}.png`
-            : '',
-          logos: {},
-          espnUrl: `https://www.espn.com.ar/futbol/liga/_/nombre/${espnSlug}`,
-        };
-
-        return {
-          league: leagueRef,
-          standingsGroups: espnGroups,
-          brackets: [],
-          rounds: [],
-          matches: espnToday.matches,
-          playerLeaders: [],
-        };
+        return pmDetail;
       },
       { staleTtlSeconds: 1800, waitUntil, bypassCache },
       env,
     );
 
     if (cached.warning) warnings.push(cached.warning);
-    if (activeSources.size === 0) activeSources.add('promiedos');
 
     return {
       data: cached.value,
       cache: cached.cache,
-      sources: Array.from(activeSources),
+      sources: ['promiedos'],
       warnings,
       tookMs: Date.now() - start,
     };
@@ -1195,7 +987,7 @@ export class FootballService {
 
   async getTeamDetail(
     rawId: string,
-    leagueHint?: string,
+    _leagueHint?: string,
     env?: EnvBindings,
     waitUntil?: (p: Promise<unknown>) => void,
     bypassCache = false,
@@ -1203,104 +995,26 @@ export class FootballService {
     const start = Date.now();
     const clean = rawId.trim();
     const warnings: string[] = [];
-    const activeSources = new Set<DataSourceName>();
 
-    const isEspnDirect = clean.startsWith('espn:') || clean.startsWith('espn-') || /^\d+$/.test(clean);
-    const espnTeamId = clean.startsWith('espn:') || clean.startsWith('espn-')
-      ? clean.slice(5)
-      : /^\d+$/.test(clean)
-        ? clean
-        : undefined;
-    const pmTeamId = clean.startsWith('pm:') || clean.startsWith('pm-')
-      ? clean.slice(3)
-      : !isEspnDirect
-        ? clean
-        : undefined;
+    const pmTeamId =
+      clean.startsWith('pm:') || clean.startsWith('pm-') ? clean.slice(3) : clean;
 
     const ttl = parseTtl(env?.CACHE_TEAM_TTL, 1800);
 
     const cached = await this.cache.getOrFetch(
-      `team:${clean}:${leagueHint ?? ''}`,
+      `team:pm:${pmTeamId}`,
       ttl,
-      async () => {
-        if (espnTeamId && !pmTeamId) {
-          const espnData = await fetchEspnTeam(espnTeamId, leagueHint ?? 'arg.1');
-          activeSources.add('espn');
-          return {
-            team: espnData.team!,
-            info: espnData.info ?? [],
-            squad: espnData.squad ?? [],
-            matches: espnData.matches ?? { recent: [], upcoming: [], all: [] },
-          };
-        }
-
-        const pmDetail = await fetchPromiedosTeam(pmTeamId!);
-        activeSources.add('promiedos');
-
-        // Intentar enriquecer con fotos/roster ESPN a través de la tabla de su liga principal
-        const mainMapping = pmDetail.mainLeague
-          ? findLeagueMapping(pmDetail.mainLeague.canonicalSlug)
-          : undefined;
-        const targetEspnSlug = leagueHint ?? mainMapping?.espnSlug;
-
-        if (targetEspnSlug) {
-          try {
-            const groups = await fetchEspnStandings(targetEspnSlug);
-            for (const g of groups) {
-              for (const t of g.tables) {
-                const matchRow = t.rows.find((r) =>
-                  areSameTeam(r.team.name, pmDetail.team.name),
-                );
-                if (matchRow?.team.externalIds.espn) {
-                  const eId = matchRow.team.externalIds.espn;
-                  pmDetail.team.externalIds.espn = eId;
-                  pmDetail.team.logos.espn = matchRow.team.logo;
-                  if (!pmDetail.team.logo) pmDetail.team.logo = matchRow.team.logo;
-
-                  const espnTeam = await fetchEspnTeam(eId, targetEspnSlug).catch(
-                    () => undefined,
-                  );
-                  if (espnTeam?.team?.standingSummary) {
-                    pmDetail.team.standingSummary = espnTeam.team.standingSummary;
-                  }
-                  if (espnTeam?.squad) {
-                    const flatEspn = espnTeam.squad.flatMap((sq) => sq.players);
-                    for (const grp of pmDetail.squad) {
-                      for (const player of grp.players) {
-                        const hit = flatEspn.find((ep) =>
-                          areSameTeam(player.name, ep.name),
-                        );
-                        if (hit) {
-                          player.id = hit.id;
-                          player.headshot = hit.headshot;
-                          player.jerseyNumber = player.jerseyNumber ?? hit.jerseyNumber;
-                        }
-                      }
-                    }
-                  }
-                  activeSources.add('espn');
-                  break;
-                }
-              }
-            }
-          } catch {
-            // Enriquecimiento opcional no bloquea perfil Promiedos
-          }
-        }
-
-        return pmDetail;
-      },
+      async () => fetchPromiedosTeam(pmTeamId),
       { staleTtlSeconds: 7200, waitUntil, bypassCache },
       env,
     );
 
     if (cached.warning) warnings.push(cached.warning);
-    if (activeSources.size === 0) activeSources.add('promiedos');
 
     return {
       data: cached.value,
       cache: cached.cache,
-      sources: Array.from(activeSources),
+      sources: ['promiedos'],
       warnings,
       tookMs: Date.now() - start,
     };

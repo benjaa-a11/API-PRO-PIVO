@@ -541,6 +541,7 @@ async function runLiveE2E(): Promise<void> {
   const todayRes = await callApi('/api/v1/matches?date=today');
   assert.equal(todayRes.status, 200);
   assert.equal(todayRes.body.ok, true);
+  assert.deepEqual(todayRes.body.meta.sources, ['promiedos']);
   assert.ok(todayRes.body.data.summary.totalMatches > 0, 'Expected matches today');
   console.log(
     `GET /api/v1/matches?date=today -> 200 OK (matches=${todayRes.body.data.summary.totalMatches}, live=${todayRes.body.data.summary.liveMatches}, leagues=${todayRes.body.data.summary.leaguesCount}, sources=${todayRes.body.meta.sources.join('+')}, took=${todayRes.body.meta.tookMs}ms)`,

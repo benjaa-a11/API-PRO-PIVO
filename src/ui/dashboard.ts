@@ -565,7 +565,7 @@ pre.json{margin:0;padding:16px;font-family:var(--mono);font-size:12px;overflow:a
     </div>
 
     <div class="side-foot">
-      <span>Promiedos + ESPN</span>
+      <span>Promiedos API</span>
       <span id="sideVersion">v1.0.0</span>
     </div>
   </aside>
@@ -1202,9 +1202,9 @@ async function loadMappings() {
   const j = await apiGet('/api/v1/mappings');
   S.mappingsData = j.data;
   $('#viewRoot').innerHTML =
-    '<section class="hero"><div><h2><b>' + j.count + '</b> Ligas Mapeadas</h2><p>Equivalencias directas Promiedos ↔ ESPN Argentina</p></div></section>' +
-    '<div class="panel"><div class="table-wrap"><table class="tbl"><thead><tr><th>Prioridad</th><th>Nombre</th><th>Slug Canónico</th><th>Promiedos ID</th><th>ESPN Slug</th></tr></thead><tbody>' +
-    (j.data || []).map((m) => '<tr><td class="num">' + m.priority + '</td><td><button class="team-link" data-nav="league:' + esc(m.canonicalSlug) + '">' + esc(m.name) + '</button></td><td style="font-family:var(--mono)">' + esc(m.canonicalSlug) + '</td><td style="font-family:var(--mono);color:var(--lime)">' + esc(m.promiedosId || '-') + '</td><td style="font-family:var(--mono);color:var(--amber)">' + esc(m.espnSlug || '-') + '</td></tr>').join('') +
+    '<section class="hero"><div><h2><b>' + j.count + '</b> Ligas Mapeadas</h2><p>Catálogo de ligas canónicas de Promiedos</p></div></section>' +
+    '<div class="panel"><div class="table-wrap"><table class="tbl"><thead><tr><th>Prioridad</th><th>Nombre</th><th>Slug Canónico</th><th>Promiedos ID</th></tr></thead><tbody>' +
+    (j.data || []).map((m) => '<tr><td class="num">' + m.priority + '</td><td><button class="team-link" data-nav="league:' + esc(m.canonicalSlug) + '">' + esc(m.name) + '</button></td><td style="font-family:var(--mono)">' + esc(m.canonicalSlug) + '</td><td style="font-family:var(--mono);color:var(--lime)">' + esc(m.promiedosId || '-') + '</td></tr>').join('') +
     '</tbody></table></div></div>';
 }
 
